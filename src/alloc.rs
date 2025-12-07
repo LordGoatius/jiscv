@@ -29,12 +29,6 @@ impl BumpAlloc {
             end: end as usize,
         });
     }
-
-    pub fn alloc_page(&self, len: usize) -> *mut u8 {
-        unsafe {
-            self.alloc_zeroed(Layout::from_size_align(len, 0x1000).unwrap())
-        }
-    }
 }
 
 unsafe impl GlobalAlloc for BumpAlloc {

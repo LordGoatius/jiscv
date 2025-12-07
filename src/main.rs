@@ -1,4 +1,4 @@
-#![feature(naked_functions_rustic_abi, const_trait_impl, const_default)]
+#![feature(naked_functions_rustic_abi, const_trait_impl, const_default, pointer_is_aligned_to)]
 #![no_std]
 #![no_main]
 
