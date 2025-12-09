@@ -1,18 +1,29 @@
-use core::arch::{asm, naked_asm};
+use core::arch::naked_asm;
 
-use crate::{PROC_CURR, PROC_IDLE, println, write_csr};
+use crate::{
+    __heap_end, __kernel_base, PROC_CURR, PROC_IDLE, paging::{PAGE_R, PAGE_SIZE, PAGE_X, PAGE_W, PAddr, PageTable, SATP_SV39_ENABLE, VAddr}, println, switch_page_table, write_csr
+};
 
 const PROC_MAX: usize = 0x16;
 const STACK_SIZE: usize = 0x2000;
 pub static mut PROCS: [Process; PROC_MAX] = [Process::default(); PROC_MAX];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub struct Process {
     pub(crate) pid: usize,
     pub(crate) state: ProcessState,
     pub(crate) sp: usize,
+    pub(crate) page_table: *mut PageTable,
     pub(crate) kstack: [u8; STACK_SIZE],
 }
+
+impl PartialEq for Process {
+    fn eq(&self, other: &Self) -> bool {
+        self.pid == other.pid
+    }
+}
+
+impl Eq for Process {}
 
 impl const Default for Process {
     fn default() -> Self {
@@ -20,6 +31,7 @@ impl const Default for Process {
             pid: usize::MAX,
             state: ProcessState::Unused,
             sp: usize::MAX,
+            page_table: core::ptr::null_mut(),
             kstack: [0; STACK_SIZE],
         }
     }
@@ -45,16 +57,10 @@ pub enum ProcessError {
 }
 
 pub fn r#yield() {
-    let mut next = unsafe {
-        *PROC_IDLE
-    };
+    let mut next = unsafe { *PROC_IDLE };
 
     for i in 0..PROC_MAX {
-        let proc = unsafe {
-            &raw mut PROCS[
-                ((*PROC_CURR.unwrap()).pid + i + 1) % PROC_MAX
-            ]
-        };
+        let proc = unsafe { &raw mut PROCS[((*PROC_CURR.unwrap()).pid + i + 1) % PROC_MAX] };
         if unsafe { (*proc).state == ProcessState::InUse && (*proc).pid > 0 } {
             next = proc;
             break;
@@ -66,9 +72,15 @@ pub fn r#yield() {
         return;
     }
 
-
     unsafe {
-        write_csr!("sscratch", (*next).kstack.as_mut_ptr().add(STACK_SIZE) as u64);
+        switch_page_table!(
+            SATP_SV39_ENABLE | ((*next).page_table as usize / PAGE_SIZE)
+        );
+
+        write_csr!(
+            "sscratch",
+            (*next).kstack.as_mut_ptr().add(STACK_SIZE) as u64
+        );
 
         let prev = PROC_CURR.unwrap();
         PROC_CURR = Some(next);
@@ -97,9 +109,20 @@ pub fn create_process(pc: usize) -> Result<*mut Process, ProcessError> {
 
             sp.write(pc);
 
+            let page_table = PageTable::alloc();
+
+            let mut addr = &raw mut __kernel_base;
+            while addr < &raw mut __heap_end {
+                (*page_table).map_page(VAddr(addr as *mut ()), PAddr(addr as *mut ()), PAGE_X | PAGE_R | PAGE_W);
+                addr = addr.add(PAGE_SIZE);
+            }
+
             (*ptr).pid = proc;
             (*ptr).state = ProcessState::InUse;
+            (*ptr).page_table = page_table;
             (*ptr).sp = sp as usize;
+
+            println!("Process created");
 
             ptr
         })
@@ -111,7 +134,7 @@ pub extern "C" fn switch_context(sp_prev: *mut usize, sp_new: *mut usize) {
     naked_asm!(
         // Save callee-saved registers onto the current process's stack.
         "addi sp, sp, (-13 * 8)", // Allocate stack space for 13 8-byte registers
-        "sd ra,  0  * 8(sp)",   // Save callee-saved registers only
+        "sd ra,  0  * 8(sp)",     // Save callee-saved registers only
         "sd s0,  1  * 8(sp)",
         "sd s1,  2  * 8(sp)",
         "sd s2,  3  * 8(sp)",

@@ -19,6 +19,18 @@ macro_rules! write_csr {
     }};
 }
 
+#[macro_export]
+macro_rules! switch_page_table {
+    ($value:expr) => {{
+        let value: usize = $value;
+        ::core::arch::asm!(
+            "sfence.vma",
+            concat!("csrw satp, ", "{}"),
+            "sfence.vma",
+            in(reg) value)
+    }};
+}
+
 #[unsafe(link_section = ".text.stvec")]
 #[unsafe(naked)]
 pub fn trap_entry() {

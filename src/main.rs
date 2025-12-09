@@ -23,6 +23,7 @@ unsafe extern "C" {
     static mut __bss_end: u8;
     static mut __heap: u8;
     static mut __heap_end: u8;
+    static mut __kernel_base: u8;
 }
 
 #[unsafe(no_mangle)]
