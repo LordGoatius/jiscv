@@ -1,7 +1,7 @@
-use core::arch::naked_asm;
+use core::{arch::naked_asm, slice};
 
 use crate::{
-    __heap_end, __kernel_base, PROC_CURR, PROC_IDLE, paging::{PAGE_R, PAGE_SIZE, PAGE_X, PAGE_W, PAddr, PageTable, SATP_SV39_ENABLE, VAddr}, println, switch_page_table, write_csr
+    __heap_end, __kernel_base, PROC_CURR, PROC_IDLE, alloc::GLOBAL_ALLOC, paging::{Entry, PAGE_R, PAGE_SIZE, PAGE_U, PAGE_W, PAGE_X, PAddr, PageTable, SATP_SV39_ENABLE, VAddr}, println, switch_page_table, user::{USER_BASE, userspace_entry}, write_csr
 };
 
 const PROC_MAX: usize = 0x16;
@@ -79,7 +79,7 @@ pub fn r#yield() {
 
         write_csr!(
             "sscratch",
-            (*next).kstack.as_mut_ptr().add(STACK_SIZE) as u64
+            (*next).kstack.as_mut_ptr().add(STACK_SIZE) as usize
         );
 
         let prev = PROC_CURR.unwrap();
@@ -88,7 +88,7 @@ pub fn r#yield() {
     }
 }
 
-pub fn create_process(pc: usize) -> Result<*mut Process, ProcessError> {
+pub fn create_process(image: *mut u8, size: usize) -> Result<*mut Process, ProcessError> {
     let mut index = None;
     for i in 0..PROC_MAX {
         if unsafe { PROCS[i] }.state == ProcessState::Unused {
@@ -102,12 +102,14 @@ pub fn create_process(pc: usize) -> Result<*mut Process, ProcessError> {
             let ptr = &raw mut PROCS[proc];
             let mut sp = &raw mut PROCS[proc].kstack[STACK_SIZE - 8] as *mut usize;
 
+            // s11-s0
             for _ in 0..12 {
                 sp.write(0);
                 sp = sp.wrapping_sub(1);
             }
 
-            sp.write(pc);
+            // set ra to pc
+            sp.write(userspace_entry as *const () as usize);
 
             let page_table = PageTable::alloc();
 
@@ -117,6 +119,23 @@ pub fn create_process(pc: usize) -> Result<*mut Process, ProcessError> {
                 addr = addr.add(PAGE_SIZE);
             }
 
+            for offset in (0..size).step_by(PAGE_SIZE) {
+                let page = GLOBAL_ALLOC.alloc_page();
+
+                let rem = size - offset;
+                let copy_size = if PAGE_SIZE <= rem {
+                    PAGE_SIZE
+                } else {
+                    rem
+                };
+
+                slice::from_raw_parts_mut(page, copy_size).copy_from_slice(
+                    slice::from_raw_parts(image.add(offset), copy_size)
+                );
+
+                (*page_table).map_page(VAddr((USER_BASE + offset) as *mut ()), PAddr(page as *mut ()), PAGE_R | PAGE_W | PAGE_X | PAGE_U);
+            }
+         
             (*ptr).pid = proc;
             (*ptr).state = ProcessState::InUse;
             (*ptr).page_table = page_table;

@@ -4,6 +4,8 @@ use core::alloc::{GlobalAlloc, Layout};
 
 use spin::Mutex;
 
+use crate::paging::PageTable;
+
 #[global_allocator]
 pub static GLOBAL_ALLOC: BumpAlloc = BumpAlloc::new();
 
@@ -28,6 +30,10 @@ impl BumpAlloc {
             next: start as usize,
             end: end as usize,
         });
+    }
+
+    pub fn alloc_page(&self) -> *mut u8 {
+        unsafe { self.alloc_zeroed(Layout::new::<PageTable>()) }
     }
 }
 

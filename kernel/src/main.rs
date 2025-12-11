@@ -1,14 +1,21 @@
-#![feature(naked_functions_rustic_abi, const_trait_impl, const_default, pointer_is_aligned_to)]
+#![feature(
+    naked_functions_rustic_abi,
+    const_trait_impl,
+    const_default,
+    pointer_is_aligned_to
+)]
 #![no_std]
 #![no_main]
 
 extern crate alloc as ralloc;
 
 mod alloc;
+mod paging;
 mod proc;
 mod sbi;
 mod trap;
-mod paging;
+
+mod user;
 
 use core::arch::asm;
 use core::panic::PanicInfo;
@@ -16,7 +23,8 @@ use core::panic::PanicInfo;
 use spin::lazy::Lazy;
 
 use crate::alloc::GLOBAL_ALLOC;
-use crate::proc::{Process, create_process, r#yield};
+use crate::proc::{create_process, r#yield, Process};
+use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
 
 unsafe extern "C" {
     static mut __bss: u8;
@@ -39,9 +47,8 @@ pub extern "C" fn boot() -> ! {
     }
 }
 
-static mut PROC_IDLE: Lazy<*mut Process> = Lazy::new(|| create_process(core::ptr::null_mut() as *const () as usize).unwrap());
-static mut PROC_A: Lazy<*mut Process> = Lazy::new(|| create_process(proc_a_entry as *const () as usize).unwrap());
-static mut PROC_B: Lazy<*mut Process> = Lazy::new(|| create_process(proc_b_entry as *const () as usize).unwrap());
+static mut PROC_IDLE: Lazy<*mut Process> =
+    Lazy::new(|| create_process(core::ptr::null_mut(), 0).unwrap());
 
 pub static mut PROC_CURR: Option<*mut Process> = None;
 
@@ -70,27 +77,18 @@ fn main() -> ! {
         asm!("csrw stvec, {}", in(reg) trap::trap_entry as *const u8);
     }
 
+    println!("Booting JimOS");
+
     GLOBAL_ALLOC.init(&raw mut __heap, &raw mut __heap_end);
 
-    {
-        let idle;
-        let proc_a;
-        let proc_b;
-
-        unsafe {
-            idle = *PROC_IDLE;
-            PROC_CURR = Some(idle);
-            let _ = idle.read_volatile();
-
-            proc_b = *PROC_B;
-            proc_a = *PROC_A;
-
-            let _ = proc_a.read_volatile().pid;
-            let _ = proc_b.read_volatile().pid;
-        }
+    unsafe {
+        PROC_CURR = Some(*PROC_IDLE);
     }
 
-    println!("Booting JimOS");
+    let user_proc = create_process(
+        &raw mut _binary__shell_bin_start,
+        &raw mut _binary__shell_bin_end as usize - &raw mut _binary__shell_bin_start as usize
+    );
 
     r#yield();
 

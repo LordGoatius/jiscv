@@ -1,10 +1,18 @@
-!#/bin/bash
+#!/bin/bash
 set -ev
 
-RUSTFLAGS="-C link-arg=-Tkernel.ld -C linker=rust-lld" \
-  cargo build --bin kernel --target riscv64gc-unknown-none-elf
+cargo build --bin shell --target riscv64gc-unknown-none-elf
 
-cp kernel/target/riscv64gc-unknown-none-elf/debug/kernel kernel.elf
+cp target/riscv64gc-unknown-none-elf/debug/shell .shell.elf
+
+llvm-objcopy --set-section-flags .bss=alloc,contents -O binary .shell.elf .shell.bin
+llvm-objcopy -Ibinary -Oelf64-littleriscv .shell.bin .shell.bin.o
+./flags.py
+
+RUSTFLAGS="-C link-arg=.shell.bin.o" \
+    cargo build --bin kernel --target riscv64gc-unknown-none-elf
+
+cp target/riscv64gc-unknown-none-elf/debug/kernel kernel.elf
 
 qemu-system-riscv64 \
     -machine virt \

@@ -1,9 +1,14 @@
-use core::arch::naked_asm;
+use core::arch::{asm, naked_asm};
+
+use crate::{println, sbi::sbi_putchar};
+
+const SCAUSE_ECALL: usize = 8;
+pub const SYS_PUTCHAR: usize = 1;
 
 #[macro_export]
 macro_rules! read_csr {
     ($csr:expr) => {{
-        let mut value: u64;
+        let mut value: usize;
         unsafe {
             ::core::arch::asm!(concat!("csrr {}, ", $csr), out(reg) value);
         }
@@ -14,8 +19,10 @@ macro_rules! read_csr {
 #[macro_export]
 macro_rules! write_csr {
     ($csr:expr, $value:expr) => {{
-        let value: u64 = $value;
-        ::core::arch::asm!(concat!("csrw ", $csr, ", {}"), in(reg) value)
+        let value: usize = $value;
+        unsafe {
+            ::core::arch::asm!(concat!("csrw ", $csr, ", {}"), in(reg) value);
+        }
     }};
 }
 
@@ -33,7 +40,7 @@ macro_rules! switch_page_table {
 
 #[unsafe(link_section = ".text.stvec")]
 #[unsafe(naked)]
-pub fn trap_entry() {
+pub extern "C" fn trap_entry() {
     naked_asm!(
         "csrrw sp, sscratch, sp",
 
@@ -72,8 +79,8 @@ pub fn trap_entry() {
         "csrr a0, sscratch",
         "sd a0, 8 * 30(sp)",
 
-        "addi a0, sp, 4 * 31",
-        "sd a0, 4 * 30(sp)",
+        "addi a0, sp, 8 * 31",
+        "csrw sscratch, a0",
 
         "mv a0, sp",
         "call trap_handler",
@@ -114,10 +121,16 @@ pub fn trap_entry() {
 }
 
 #[unsafe(no_mangle)]
-fn trap_handler(_f: TrapFrame) -> ! {
+fn trap_handler(f: &mut TrapFrame) {
     let scause = read_csr!("scause");
     let sepc = read_csr!("sepc");
     let stval = read_csr!("stval");
+
+    if scause == SCAUSE_ECALL {
+        handle_syscall(f);
+        write_csr!("sepc", sepc + 8);
+        return;
+    }
 
     let scause_readable = match scause {
         0 => "instruction address misaligned",
@@ -128,7 +141,7 @@ fn trap_handler(_f: TrapFrame) -> ! {
         5 => "load access fault",
         6 => "store/AMO address misaligned",
         7 => "store/AMO access fault",
-        8 => "environment call from U/VU-mode",
+        SCAUSE_ECALL => "environment call from U/VU-mode",
         9 => "environment call from HS-mode",
         10 => "environment call from VS-mode",
         11 => "environment call from M-mode",
@@ -145,37 +158,45 @@ fn trap_handler(_f: TrapFrame) -> ! {
     panic!("trap handler: {} at {:#x} (stval={:#x})", scause_readable, sepc, stval);
 }
 
+fn handle_syscall(f: &mut TrapFrame) {
+    match f.a3 {
+        SYS_PUTCHAR => sbi_putchar(f.a0 as u8),
+        call => panic!("Unimplemented syscall {}", call)
+    }
+}
+
 #[repr(C, packed)]
+#[derive(Debug)]
 struct TrapFrame {
-    ra: u64,
-    gp: u64,
-    tp: u64,
-    t0: u64,
-    t1: u64,
-    t2: u64,
-    t3: u64,
-    t4: u64,
-    t5: u64,
-    t6: u64,
-    a0: u64,
-    a1: u64,
-    a2: u64,
-    a3: u64,
-    a4: u64,
-    a5: u64,
-    a6: u64,
-    a7: u64,
-    s0: u64,
-    s1: u64,
-    s2: u64,
-    s3: u64,
-    s4: u64,
-    s5: u64,
-    s6: u64,
-    s7: u64,
-    s8: u64,
-    s9: u64,
-    s10: u64,
-    s11: u64,
-    sp: u64,
+    ra: usize,
+    gp: usize,
+    tp: usize,
+    t0: usize,
+    t1: usize,
+    t2: usize,
+    t3: usize,
+    t4: usize,
+    t5: usize,
+    t6: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+    a3: usize,
+    a4: usize,
+    a5: usize,
+    a6: usize,
+    a7: usize,
+    s0: usize,
+    s1: usize,
+    s2: usize,
+    s3: usize,
+    s4: usize,
+    s5: usize,
+    s6: usize,
+    s7: usize,
+    s8: usize,
+    s9: usize,
+    s10: usize,
+    s11: usize,
+    sp: usize,
 }

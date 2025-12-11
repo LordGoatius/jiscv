@@ -20,7 +20,7 @@
 //!
 //! ```
 
-use core::{alloc::{GlobalAlloc, Layout}, slice};
+use core::{alloc::{GlobalAlloc, Layout}, ops::{Deref, DerefMut}, slice};
 
 use crate::alloc::GLOBAL_ALLOC;
 
@@ -49,7 +49,7 @@ pub const PAGE_W: usize = 1 << 2;
 /// Executable
 pub const PAGE_X: usize = 1 << 3;
 /// User (accessible in user mode)
-const PAGE_U: usize = 1 << 4;
+pub const PAGE_U: usize = 1 << 4;
 /// Global (exist in every address space)
 const PAGE_G: usize = 1 << 5;
 /// Accessed (page has been accessed since last time A was set to 0)
@@ -91,6 +91,20 @@ pub struct PAddr(pub *const ());
 #[derive(Debug)]
 #[repr(C, align(4096))]
 pub struct PageTable([Entry; PAGE_TABLE_SIZE]);
+
+impl Deref for PageTable {
+    type Target = [Entry; PAGE_TABLE_SIZE];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for PageTable {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 impl PageTable {
     pub fn alloc() -> *mut PageTable {
