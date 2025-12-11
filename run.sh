@@ -4,7 +4,7 @@ set -ev
 RUSTFLAGS="-C link-arg=-Tkernel.ld -C linker=rust-lld" \
   cargo build --bin kernel --target riscv64gc-unknown-none-elf
 
-cp target/riscv64gc-unknown-none-elf/debug/kernel kernel.elf
+cp kernel/target/riscv64gc-unknown-none-elf/debug/kernel kernel.elf
 
 qemu-system-riscv64 \
     -machine virt \

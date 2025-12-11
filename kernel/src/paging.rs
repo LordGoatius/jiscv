@@ -20,9 +20,9 @@
 //!
 //! ```
 
-use core::{alloc::{GlobalAlloc, Layout}, ptr::slice_from_raw_parts, slice};
+use core::{alloc::{GlobalAlloc, Layout}, slice};
 
-use crate::{alloc::GLOBAL_ALLOC, println};
+use crate::alloc::GLOBAL_ALLOC;
 
 const SATP_PPN: usize = 0;
 const SATP_ASID: usize = 44;
