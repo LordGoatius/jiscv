@@ -1,7 +1,15 @@
 use core::{arch::naked_asm, slice};
 
 use crate::{
-    __heap_end, __kernel_base, PROC_CURR, PROC_IDLE, alloc::GLOBAL_ALLOC, paging::{Entry, PAGE_R, PAGE_SIZE, PAGE_U, PAGE_W, PAGE_X, PAddr, PageTable, SATP_SV39_ENABLE, VAddr}, println, switch_page_table, user::{USER_BASE, userspace_entry}, write_csr
+    __heap_end, __kernel_base,
+    alloc::GLOBAL_ALLOC,
+    paging::{
+        PAddr, PageTable, VAddr, PAGE_R, PAGE_SIZE, PAGE_U, PAGE_W, PAGE_X,
+        SATP_SV39_ENABLE,
+    },
+    switch_page_table,
+    user::{userspace_entry, USER_BASE},
+    write_csr, PROC_CURR, PROC_IDLE,
 };
 
 const PROC_MAX: usize = 0x16;
@@ -42,6 +50,7 @@ impl const Default for Process {
 pub enum ProcessState {
     Unused,
     InUse,
+    Exited,
 }
 
 impl const Default for ProcessState {
@@ -73,9 +82,7 @@ pub fn r#yield() {
     }
 
     unsafe {
-        switch_page_table!(
-            SATP_SV39_ENABLE | ((*next).page_table as usize / PAGE_SIZE)
-        );
+        switch_page_table!(SATP_SV39_ENABLE | ((*next).page_table as usize / PAGE_SIZE));
 
         write_csr!(
             "sscratch",
@@ -115,7 +122,11 @@ pub fn create_process(image: *mut u8, size: usize) -> Result<*mut Process, Proce
 
             let mut addr = &raw mut __kernel_base;
             while addr < &raw mut __heap_end {
-                (*page_table).map_page(VAddr(addr as *mut ()), PAddr(addr as *mut ()), PAGE_X | PAGE_R | PAGE_W);
+                (*page_table).map_page(
+                    VAddr(addr as *mut ()),
+                    PAddr(addr as *mut ()),
+                    PAGE_X | PAGE_R | PAGE_W,
+                );
                 addr = addr.add(PAGE_SIZE);
             }
 
@@ -123,25 +134,22 @@ pub fn create_process(image: *mut u8, size: usize) -> Result<*mut Process, Proce
                 let page = GLOBAL_ALLOC.alloc_page();
 
                 let rem = size - offset;
-                let copy_size = if PAGE_SIZE <= rem {
-                    PAGE_SIZE
-                } else {
-                    rem
-                };
+                let copy_size = if PAGE_SIZE <= rem { PAGE_SIZE } else { rem };
 
-                slice::from_raw_parts_mut(page, copy_size).copy_from_slice(
-                    slice::from_raw_parts(image.add(offset), copy_size)
+                slice::from_raw_parts_mut(page, copy_size)
+                    .copy_from_slice(slice::from_raw_parts(image.add(offset), copy_size));
+
+                (*page_table).map_page(
+                    VAddr((USER_BASE + offset) as *mut ()),
+                    PAddr(page as *mut ()),
+                    PAGE_R | PAGE_W | PAGE_X | PAGE_U,
                 );
-
-                (*page_table).map_page(VAddr((USER_BASE + offset) as *mut ()), PAddr(page as *mut ()), PAGE_R | PAGE_W | PAGE_X | PAGE_U);
             }
-         
+
             (*ptr).pid = proc;
             (*ptr).state = ProcessState::InUse;
             (*ptr).page_table = page_table;
             (*ptr).sp = sp as usize;
-
-            println!("Process created");
 
             ptr
         })

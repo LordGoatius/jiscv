@@ -1,9 +1,17 @@
-use core::arch::{asm, naked_asm};
+use core::arch::naked_asm;
 
-use crate::{println, sbi::sbi_putchar};
+use crate::{
+    interrupt, println,
+    proc::{r#yield, Process, ProcessState},
+    sbi::{sbi_getchar, sbi_putchar},
+    PROC_CURR,
+};
 
-const SCAUSE_ECALL: usize = 8;
+pub const SCAUSE_ECALL: usize = 8;
+pub const SCAUSE_INT: usize = 1 << 63;
 pub const SYS_PUTCHAR: usize = 1;
+pub const SYS_GETCHAR: usize = 2;
+pub const SYS_EXIT: usize = 3;
 
 #[macro_export]
 macro_rules! read_csr {
@@ -40,10 +48,10 @@ macro_rules! switch_page_table {
 
 #[unsafe(link_section = ".text.stvec")]
 #[unsafe(naked)]
+#[rustfmt::skip]
 pub extern "C" fn trap_entry() {
     naked_asm!(
         "csrrw sp, sscratch, sp",
-
         "addi sp, sp, -8 * 31",
         "sd ra,  8 * 0(sp)",
         "sd gp,  8 * 1(sp)",
@@ -132,6 +140,11 @@ fn trap_handler(f: &mut TrapFrame) {
         return;
     }
 
+    if (scause & SCAUSE_INT) != 0 {
+        interrupt::handle_interrupt(scause, sepc, stval);
+        return;
+    }
+
     let scause_readable = match scause {
         0 => "instruction address misaligned",
         1 => "instruction access fault",
@@ -155,13 +168,30 @@ fn trap_handler(f: &mut TrapFrame) {
         _ => panic!("unknown scause: {:#x}", scause),
     };
 
-    panic!("trap handler: {} at {:#x} (stval={:#x})", scause_readable, sepc, stval);
+    panic!(
+        "trap handler: {} at {:#x} (stval={:#x})",
+        scause_readable, sepc, stval
+    );
 }
 
 fn handle_syscall(f: &mut TrapFrame) {
     match f.a3 {
         SYS_PUTCHAR => sbi_putchar(f.a0 as u8),
-        call => panic!("Unimplemented syscall {}", call)
+        SYS_GETCHAR => loop {
+            let char = sbi_getchar();
+            if char >= 0 {
+                f.a0 = char as usize;
+                break;
+            }
+            r#yield();
+        },
+        SYS_EXIT => {
+            let curr_proc: &mut Process = unsafe { PROC_CURR.unwrap().as_mut().unwrap() };
+            println!("Process exiting: {}", curr_proc.pid);
+            curr_proc.state = ProcessState::Exited;
+            r#yield();
+        }
+        call => panic!("Unimplemented syscall {}", call),
     }
 }
 

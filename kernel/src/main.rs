@@ -2,7 +2,8 @@
     naked_functions_rustic_abi,
     const_trait_impl,
     const_default,
-    pointer_is_aligned_to
+    pointer_is_aligned_to,
+    abi_riscv_interrupt
 )]
 #![no_std]
 #![no_main]
@@ -10,9 +11,12 @@
 extern crate alloc as ralloc;
 
 mod alloc;
+#[macro_use]
+mod interrupt;
 mod paging;
 mod proc;
 mod sbi;
+#[macro_use]
 mod trap;
 
 mod user;
@@ -52,22 +56,6 @@ static mut PROC_IDLE: Lazy<*mut Process> =
 
 pub static mut PROC_CURR: Option<*mut Process> = None;
 
-fn proc_a_entry() {
-    println!("Entering Proc A:");
-    loop {
-        println!("A");
-        r#yield();
-    }
-}
-
-fn proc_b_entry() {
-    println!("Entering Proc B:");
-    loop {
-        println!("B");
-        r#yield();
-    }
-}
-
 fn main() -> ! {
     unsafe {
         let bss_start = &raw mut __bss;
@@ -81,18 +69,24 @@ fn main() -> ! {
 
     GLOBAL_ALLOC.init(&raw mut __heap, &raw mut __heap_end);
 
+    interrupt::interrupt_enable();
+
     unsafe {
         PROC_CURR = Some(*PROC_IDLE);
     }
 
-    let user_proc = create_process(
+    let _ = create_process(
         &raw mut _binary__shell_bin_start,
-        &raw mut _binary__shell_bin_end as usize - &raw mut _binary__shell_bin_start as usize
+        &raw mut _binary__shell_bin_end as usize - &raw mut _binary__shell_bin_start as usize,
     );
 
     r#yield();
 
-    loop {}
+    // Entering kernel busy loop
+    println!("Entering kernel wait period");
+    loop {
+        unsafe { asm!("wfi") }
+    }
 }
 
 #[panic_handler]

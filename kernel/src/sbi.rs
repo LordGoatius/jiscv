@@ -43,6 +43,13 @@ pub fn sbi_putchar(ch: u8) {
     }
 }
 
+pub fn sbi_getchar() -> i64 {
+    let SbiRet { error, value: _ } = unsafe {
+        sbi_call(0, 0, 0, 0, 0, 0, 0, 2)
+    };
+    return error as i64;
+}
+
 pub struct Printer;
 
 impl core::fmt::Write for Printer {
