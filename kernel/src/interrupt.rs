@@ -1,4 +1,4 @@
-use crate::{println, read_csr, trap::SCAUSE_INT, write_csr};
+use crate::{println, read_csr, trap::SCAUSE_INT, user::SSTATUS_SPIE, write_csr};
 
 #[macro_use]
 pub mod macros {
@@ -45,6 +45,7 @@ pub const SIE_SOFTWARE_EXTERNAL_INTERRUPT_ENABLE: usize = 1 << 1;
 /// Enables SIE interrupts as supervisor
 pub const SSTATUS_SIE: usize = 1 << 1;
 
+#[unsafe(no_mangle)]
 pub fn interrupt_enable() {
     write_csr!(
         "sie",

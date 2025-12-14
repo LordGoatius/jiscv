@@ -13,7 +13,7 @@ unsafe extern "C" {
 fn main() {
     println!("Hello! You are now entering the shell");
     Shell::default().enter();
-    exit();
+    // exit();
 }
 
 #[unsafe(naked)]

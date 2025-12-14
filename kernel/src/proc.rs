@@ -1,15 +1,9 @@
 use core::{arch::naked_asm, slice};
 
 use crate::{
-    __heap_end, __kernel_base,
-    alloc::GLOBAL_ALLOC,
-    paging::{
-        PAddr, PageTable, VAddr, PAGE_R, PAGE_SIZE, PAGE_U, PAGE_W, PAGE_X,
-        SATP_SV39_ENABLE,
-    },
-    switch_page_table,
-    user::{userspace_entry, USER_BASE},
-    write_csr, PROC_CURR, PROC_IDLE,
+    __heap_end, __kernel_base, PROC_CURR, PROC_IDLE, alloc::GLOBAL_ALLOC, paging::{
+        PAGE_R, PAGE_SIZE, PAGE_U, PAGE_W, PAGE_X, PAddr, PageTable, SATP_SV39_ENABLE, VAddr
+    }, switch_page_table, user::{USER_BASE, userspace_entry}, virtio::VIRTIO_BLK_PADDR, write_csr
 };
 
 const PROC_MAX: usize = 0x16;
@@ -129,6 +123,7 @@ pub fn create_process(image: *mut u8, size: usize) -> Result<*mut Process, Proce
                 );
                 addr = addr.add(PAGE_SIZE);
             }
+            (*page_table).map_page(VAddr(VIRTIO_BLK_PADDR as *mut ()), PAddr(VIRTIO_BLK_PADDR as *mut ()), PAGE_R | PAGE_W);
 
             for offset in (0..size).step_by(PAGE_SIZE) {
                 let page = GLOBAL_ALLOC.alloc_page();

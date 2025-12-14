@@ -18,7 +18,9 @@ mod proc;
 mod sbi;
 #[macro_use]
 mod trap;
+mod virtio;
 
+mod dtree;
 mod user;
 
 use core::arch::asm;
@@ -27,6 +29,7 @@ use core::panic::PanicInfo;
 use spin::lazy::Lazy;
 
 use crate::alloc::GLOBAL_ALLOC;
+use crate::dtree::DeviceTreeHeader;
 use crate::proc::{create_process, r#yield, Process};
 use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
 
@@ -57,6 +60,18 @@ static mut PROC_IDLE: Lazy<*mut Process> =
 pub static mut PROC_CURR: Option<*mut Process> = None;
 
 fn main() -> ! {
+    let devicetree = unsafe {
+        let temp: usize;
+        asm!(
+            "mv {}, a1",
+            out(reg) temp,
+        );
+        temp as *mut DeviceTreeHeader
+    };
+
+    println!("{}", unsafe { *devicetree });
+    assert_eq!(unsafe { *devicetree }.magic, 0xd00dfeed_u32.to_be());
+
     unsafe {
         let bss_start = &raw mut __bss;
         let bss_size = (&raw mut __bss_end as usize) - (&raw mut __bss as usize);
