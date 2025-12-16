@@ -17,6 +17,8 @@ mod paging;
 mod proc;
 mod sbi;
 #[macro_use]
+mod print;
+#[macro_use]
 mod trap;
 mod virtio;
 

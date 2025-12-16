@@ -1,7 +1,7 @@
 use core::arch::naked_asm;
 
 use crate::{
-    interrupt, println,
+    interrupt,
     proc::{r#yield, Process, ProcessState},
     sbi::{sbi_getchar, sbi_putchar},
     PROC_CURR,
@@ -28,6 +28,7 @@ macro_rules! read_csr {
 macro_rules! write_csr {
     ($csr:expr, $value:expr) => {{
         let value: usize = $value;
+        #[allow(unused_unsafe)]
         unsafe {
             ::core::arch::asm!(concat!("csrw ", $csr, ", {}"), in(reg) value);
         }
@@ -176,7 +177,10 @@ fn trap_handler(f: &mut TrapFrame) {
 
 fn handle_syscall(f: &mut TrapFrame) {
     match f.a3 {
-        SYS_PUTCHAR => sbi_putchar(f.a0 as u8),
+        SYS_PUTCHAR => {
+            sbi_putchar(f.a0 as u8);
+            ()
+        }
         SYS_GETCHAR => loop {
             let char = sbi_getchar();
             if char >= 0 {
