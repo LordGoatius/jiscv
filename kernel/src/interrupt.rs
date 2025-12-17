@@ -1,4 +1,4 @@
-use crate::{println, read_csr, trap::SCAUSE_INT, user::SSTATUS_SPIE, write_csr};
+use crate::{trap::SCAUSE_INT, write_csr};
 
 #[macro_use]
 pub mod macros {
@@ -58,6 +58,7 @@ pub fn interrupt_enable() {
     write_csr!("stimecmp", 0xffffff);
 }
 
+#[allow(unused)]
 pub fn handle_interrupt(scause: usize, sepc: usize, stval: usize) {
     let scause_readable = match scause & !SCAUSE_INT {
         0 => "Reserved",

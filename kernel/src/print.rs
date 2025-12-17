@@ -24,3 +24,12 @@ macro_rules! print {
         let _ = write!($crate::print::Printer, $($arg)*);
     }};
 }
+
+#[macro_export]
+macro_rules! dbg {
+    ($($arg:tt)*) => {{
+        let val = $($arg)*;
+        println!("{} : {:?}", stringify!($($arg)*), val);
+        val
+    }};
+}

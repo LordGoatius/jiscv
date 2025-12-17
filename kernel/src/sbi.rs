@@ -1,3 +1,5 @@
+#![expect(unused)]
+
 use core::arch::asm;
 
 #[repr(i64)]

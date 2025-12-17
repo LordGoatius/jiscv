@@ -1,4 +1,7 @@
 #![feature(
+    arbitrary_self_types,
+    arbitrary_self_types_pointers,
+    ptr_as_ref_unchecked,
     naked_functions_rustic_abi,
     const_trait_impl,
     const_default,
@@ -34,6 +37,7 @@ use crate::alloc::GLOBAL_ALLOC;
 use crate::dtree::DeviceTreeHeader;
 use crate::proc::{create_process, r#yield, Process};
 use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
+use crate::virtio::{SECTOR_SIZE, init_virtio, read_write_disk};
 
 unsafe extern "C" {
     static mut __bss: u8;
@@ -86,6 +90,16 @@ fn main() -> ! {
 
     GLOBAL_ALLOC.init(&raw mut __heap, &raw mut __heap_end);
 
+    init_virtio();
+
+    let mut buf: [u8; SECTOR_SIZE as usize] = [0; SECTOR_SIZE as usize];
+    read_write_disk(buf.as_mut_ptr(), 0, false);
+
+    println!("first sector: {}", unsafe { str::from_utf8_unchecked(&buf) });
+
+    buf.copy_from_slice(b"Hello from the kernel!");
+    read_write_disk(buf.as_mut_ptr(), 0, true);
+    
     interrupt::interrupt_enable();
 
     unsafe {

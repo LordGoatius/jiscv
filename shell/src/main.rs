@@ -3,7 +3,7 @@
 
 use core::{arch::naked_asm, panic::PanicInfo};
 
-use shell::{exit, println, Shell};
+use shell::{Shell, println};
 
 unsafe extern "C" {
     static mut __stack_top: u8;
@@ -13,7 +13,7 @@ unsafe extern "C" {
 fn main() {
     println!("Hello! You are now entering the shell");
     Shell::default().enter();
-    // exit();
+    shell::exit();
 }
 
 #[unsafe(naked)]

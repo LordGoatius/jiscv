@@ -1,5 +1,17 @@
 use core::fmt::Display;
 
+#[repr(u32)]
+#[rustfmt::skip]
+#[derive(Debug, Clone, Copy)]
+#[allow(non_camel_case_types)]
+pub enum FDT_TOKEN {
+    FDT_BEGIN_NODE = u32::to_be(0x00000001),
+    FDT_END_NODE   = u32::to_be(0x00000002),
+    FDT_PROP       = u32::to_be(0x00000003),
+    FDT_NOP        = u32::to_be(0x00000004),
+    FDT_END        = u32::to_be(0x00000009),
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct DeviceTreeHeader {
@@ -13,6 +25,14 @@ pub struct DeviceTreeHeader {
     pub boot_cpuid_phys: u32,
     pub size_dt_strings: u32,
     pub size_dt_struct: u32
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+/// Reserved memory block (section of memory not to be used for memory allocation)
+pub struct MemResBlock {
+    pub addr: u64,
+    pub size: u64,
 }
 
 impl Display for DeviceTreeHeader {
@@ -31,4 +51,3 @@ impl Display for DeviceTreeHeader {
         write!(f, "}}")
    }
 }
-

@@ -19,6 +19,7 @@
 //! 63  61       54                          28         19         10   8  7  6  5  4  3  2  1  0
 //!
 //! ```
+#![allow(unused)]
 
 use core::{alloc::{GlobalAlloc, Layout}, ops::{Deref, DerefMut}, slice};
 
