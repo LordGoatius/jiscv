@@ -7,5 +7,3 @@ members = [
 ]
 
 [profile.dev]
-opt-level = 3
-debug-assertions=false

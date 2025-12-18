@@ -3,6 +3,7 @@
 use core::arch::asm;
 
 #[repr(i64)]
+#[rustfmt::skip]
 pub enum ImplId {
     BerkeleyBootLoader = 0,
     OpenSBI            = 1,
@@ -13,8 +14,8 @@ pub enum ImplId {
     Coffer             = 6,
 }
 
-#[rustfmt::skip]
 #[repr(i64)]
+#[rustfmt::skip]
 pub enum HartState {
     Started        = 0,
     Stopped        = 1,
@@ -83,9 +84,7 @@ unsafe fn sbi_call(
 /// Returns the imlementation ID
 #[allow(dead_code)]
 pub fn sbi_get_impl_id() -> crate::sbi::SbiRet {
-    unsafe {
-        sbi_call(0,0,0,0,0,0,0x1,0x10)
-    }
+    unsafe { sbi_call(0, 0, 0, 0, 0, 0, 0x1, 0x10) }
 }
 
 /// Legacy call (incompatiable with [`sbi_call`])
@@ -145,6 +144,15 @@ macro_rules! define_sbi_fn {
             }
         }
     };
+    ($name:ident, $fid:literal, $eid:literal, $arg0:ident: $ty0:ty, $arg1:ident: $ty1:ty, $arg2:ident: $ty2:ty, $arg3:ident: $ty3:ty, $(,)? $(#[$attr:meta])*) => {
+        #[allow(dead_code)]
+        $(#[$attr])*
+        pub fn $name($arg0: $ty0, $arg1: $ty1, $arg2: $ty2, $arg3: $ty3) -> $crate::sbi::SbiRet {
+            unsafe {
+                sbi_call($arg0 as u64, $arg1 as u64, $arg2 as u64, $arg3 as u64, 0, 0, $fid, $eid)
+            }
+        }
+    };
 }
 
 macro_rules! sbi_fns {
@@ -156,7 +164,7 @@ macro_rules! sbi_fns {
 }
 
 sbi_fns!(
-    [sbi_putchar, 0, 1, ch: u8,
+    [sbi_putchar, 0x0, 0x1, ch: u8,
         /// Legacy call (compatiable with [`sbi_call`])
     ],
     [sbi_get_spec_version, 0x0, 0x10,
@@ -183,21 +191,13 @@ sbi_fns!(
         /// Sends an inter-process interrupt to all harts in `hart_mask`.
         /// These are recieved as software interrupts.
     ],
-    // Don't wanna extend macro rn but this might be useful at some point
-    // [sbi_remote_fence_i, 0, 0x52464E43],
-    // [sbi_remote_sfence_vma, 1, 0x52464E43],
-    // [sbi_remote_sfence_vma_asid, 2, 0x52464E43],
-    // [sbi_remote_hfence_gvma_vmid, 3, 0x52464E43],
-    // [sbi_remote_hfence_gvma, 4, 0x52464E43],
-    // [sbi_remote_hfence_vvma_asid, 5, 0x52464E43],
-    // [sbi_remote_hfence_vvma, 6, 0x52464E43],
     [sbi_hart_start, 0, 0x48534D, hartid: u64, start_addr: usize, opaque: u64,
         /// Begin executing `hartid` at `start_addr` in supervisor mode.
         /// `hartid` will be in register a0, and `opaque` in a1
     ],
     [sbi_hart_stop, 1, 0x48534D,
         /// Stops execution of hart and return ownership to SBI
-        /// The sbi_hart_stop() must be called with the supervisor-mode interrupts disabled.
+        /// The [`sbi_hart_stop`] must be called with the supervisor-mode interrupts disabled.
     ],
     [sbi_hart_get_status, 2, 0x48534D, hart_id: u64,
         /// Gets current [`HartState`] or returns [`SbiRet::SbiErrInvalidParam`]
@@ -208,5 +208,26 @@ sbi_fns!(
     ],
     [sbi_system_reset, 0, 0x53525354, reset_type: u32, reset_reason: u32,
         /// Reset the cpu. Does not return on success.
-    ]
+    ],
+    [sbi_remote_fence_i, 0, 0x52464E43,
+        /// TODO
+    ],
+    [sbi_remote_sfence_vma, 1, 0x52464E43,
+        /// TODO
+    ],
+    [sbi_remote_sfence_vma_asid, 2, 0x52464E43,
+        /// TODO
+    ],
+    [sbi_remote_hfence_gvma_vmid, 3, 0x52464E43,
+        /// TODO
+    ],
+    [sbi_remote_hfence_gvma, 4, 0x52464E43,
+        /// TODO
+    ],
+    [sbi_remote_hfence_vvma_asid, 5, 0x52464E43,
+        /// TODO
+    ],
+    [sbi_remote_hfence_vvma, 6, 0x52464E43,
+        /// TODO
+    ],
 );

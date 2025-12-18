@@ -3,3 +3,4 @@ qemu.log
 *.elf
 *.bin
 *.bin.o
+lorem.txt

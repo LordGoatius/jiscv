@@ -178,6 +178,7 @@ fn trap_handler(f: &mut TrapFrame) {
 fn handle_syscall(f: &mut TrapFrame) {
     match f.a3 {
         SYS_PUTCHAR => {
+            // sbi_putchar(b'J');
             sbi_putchar(f.a0 as u8);
             ()
         }

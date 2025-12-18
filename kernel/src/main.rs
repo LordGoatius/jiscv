@@ -97,7 +97,7 @@ fn main() -> ! {
 
     println!("first sector: {}", unsafe { str::from_utf8_unchecked(&buf) });
 
-    buf.copy_from_slice(b"Hello from the kernel!");
+    buf[0..22].copy_from_slice(b"Hello from the kernel!");
     read_write_disk(buf.as_mut_ptr(), 0, true);
     
     interrupt::interrupt_enable();
