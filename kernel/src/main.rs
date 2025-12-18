@@ -75,9 +75,6 @@ fn main() -> ! {
         temp as *mut DeviceTreeHeader
     };
 
-    println!("{}", unsafe { *devicetree });
-    assert_eq!(unsafe { *devicetree }.magic, 0xd00dfeed_u32.to_be());
-
     unsafe {
         let bss_start = &raw mut __bss;
         let bss_size = (&raw mut __bss_end as usize) - (&raw mut __bss as usize);
@@ -89,6 +86,9 @@ fn main() -> ! {
     println!("Booting JimOS");
 
     GLOBAL_ALLOC.init(&raw mut __heap, &raw mut __heap_end);
+
+    let dtree = dtree::parse(devicetree);
+    println!("{:?}", dtree);
 
     init_virtio();
 
