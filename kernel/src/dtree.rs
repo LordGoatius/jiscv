@@ -16,7 +16,6 @@ pub enum FDT_TOKEN {
 
 impl FDT_TOKEN {
     fn from_u32(val: u32) -> Option<Self> {
-        println!("val {val:08x}");
         if val == u32::to_be(0x00000001)
             || val == u32::to_be(0x00000002)
             || val == u32::to_be(0x00000003)
@@ -32,7 +31,6 @@ impl FDT_TOKEN {
 
 pub fn parse(header: *const DeviceTreeHeader) -> DeviceTree {
     assert_eq!(unsafe { *header }.magic, 0xd00dfeed_u32.to_be());
-    println!("{header:p}");
     let parser = DeviceTreeParser::from(header);
     parser.parse()
 }
@@ -155,11 +153,9 @@ impl DeviceTreeParser {
 
             let token = unsafe {
                 let val = *(iter.add(curr) as *const u32);
-                println!("first {val:08x}");
                 FDT_TOKEN::from_u32(val).expect("DeviceTree Parse Error")
             };
 
-            println!("Continuing...");
             use FDT_TOKEN::*;
 
             // Uphold loop invariants:
@@ -202,7 +198,7 @@ impl DeviceTreeParser {
                 curr += 1;
             }
 
-            str::from_utf8_unchecked(&slice[start..=curr])
+            str::from_utf8_unchecked(&slice[start..curr])
         };
         // add the null byte to the current count
         curr += 1;
@@ -213,10 +209,8 @@ impl DeviceTreeParser {
 
         loop {
             assert!(curr % 4 == 0);
-            println!("loop");
             let token = unsafe {
                 let val = *(iter.add(curr) as *const u32);
-                println!("second {val:08x}");
                 FDT_TOKEN::from_u32(val).expect("DeviceTree Parse Error")
             };
 
@@ -240,7 +234,7 @@ impl DeviceTreeParser {
 
                     properties.push(self.parse_dt_property(prop, curr));
 
-                    curr += prop.len_data as usize;
+                    curr += u32::from_be(prop.len_data) as usize;
 
                     while curr % 4 != 0 {
                         curr += 1;
@@ -268,16 +262,12 @@ impl DeviceTreeParser {
 
         // Loop until we find a null block
         loop {
-            println!("Allowed");
-            println!("{iter:?}");
             let block = unsafe { *iter };
-            println!("Allowed");
 
             if block.is_zero() {
                 break;
             }
 
-            println!("{block:?}");
             reserved_blocks.push(block);
 
             unsafe {
@@ -298,7 +288,7 @@ impl DeviceTreeParser {
                 iter += 1;
             }
             
-            unsafe { str::from_utf8_unchecked(&strings[name_off..=iter]) }
+            unsafe { str::from_utf8_unchecked(&strings[name_off..iter]) }
         };
 
         let value = unsafe {

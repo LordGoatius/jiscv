@@ -4,3 +4,4 @@ qemu.log
 *.bin
 *.bin.o
 lorem.txt
+out

@@ -122,6 +122,7 @@ const VIRTIO_BLK_T_OUT: u32 = 1;
 
 // All of these MUST have no padding (using a 64 bit ISA)
 
+// static mut VIRTIO_DEVICE: *mut VirtioDevice = 0x10001000 as *mut VirtioDevice;
 static mut VIRTIO_DEVICE: *mut VirtioDevice = 0x10001000 as *mut VirtioDevice;
 
 // These must be initalized by the initalizer for `BLK_REQUEST_VQ`
@@ -149,7 +150,6 @@ pub fn init_virtio() {
         virtio_dev.status.or(VIRTIO_STATUS_FEAT_OK);
 
         BLK_REQUEST_VQ = virtio_dev.init_queue(0);
-        // VirtioVirtualQueue::init(virtio_dev, 0);
 
         virtio_dev.status.write(VIRTIO_STATUS_DRIVER_OK);
 
