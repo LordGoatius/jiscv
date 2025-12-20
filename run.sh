@@ -14,6 +14,8 @@ RUSTFLAGS="-C link-arg=.shell.bin.o" \
 
 cp target/riscv64gc-unknown-none-elf/debug/kernel kernel.elf
 
+(cd disk && tar cf ../disk.tar --format=ustar *.txt)
+
 qemu-system-riscv64 \
     -machine virt \
     -cpu rv64 \
@@ -24,6 +26,6 @@ qemu-system-riscv64 \
     -d cpu_reset,unimp,guest_errors,int -D qemu.log \
     -serial mon:stdio \
     --no-reboot \
-    -drive id=drive0,file=lorem.txt,format=raw,if=none \
+    -drive id=drive0,file=disk.tar,format=raw,if=none \
     -device virtio-blk-device,drive=drive0,bus=virtio-mmio-bus.0 \
     -kernel kernel.elf

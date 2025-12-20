@@ -3,5 +3,6 @@ qemu.log
 *.elf
 *.bin
 *.bin.o
+disk.tar
 lorem.txt
 out

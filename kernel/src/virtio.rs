@@ -107,10 +107,10 @@ impl VirtioDevice {
     }
 }
 
-pub const SECTOR_SIZE: u64 = 512;
+pub const VIRTIO_BLK_PADDR: *mut u8 = 0x10001000 as *mut u8;
+pub const SECTOR_SIZE: usize = 512;
 const VIRTQ_ENTRY_NUM: usize = 16;
 const VIRTIO_DEVICE_BLK: usize = 2;
-pub const VIRTIO_BLK_PADDR: *mut u8 = 0x10001000 as *mut u8;
 const VIRTIO_STATUS_ACK: u32 = 1;
 const VIRTIO_STATUS_DRIVER: u32 = 2;
 const VIRTIO_STATUS_DRIVER_OK: u32 = 4;
@@ -123,13 +123,13 @@ const VIRTIO_BLK_T_OUT: u32 = 1;
 // All of these MUST have no padding (using a 64 bit ISA)
 
 // static mut VIRTIO_DEVICE: *mut VirtioDevice = 0x10001000 as *mut VirtioDevice;
-static mut VIRTIO_DEVICE: *mut VirtioDevice = 0x10001000 as *mut VirtioDevice;
+static mut VIRTIO_DEVICE: *mut VirtioDevice = VIRTIO_BLK_PADDR as *mut VirtioDevice;
 
 // These must be initalized by the initalizer for `BLK_REQUEST_VQ`
 static mut BLK_REQUEST_VQ: *mut VirtioVirtualQueue = core::ptr::null_mut();
 static mut BLK_REQ: *mut VirtioBlockReq = core::ptr::null_mut();
 static mut BLK_REQ_PADDR: *mut u8 = core::ptr::null_mut();
-static mut BLK_CAPACITY: u64 = 0;
+static mut BLK_CAPACITY: usize = 0;
 
 pub fn init_virtio() {
     unsafe {
@@ -153,7 +153,7 @@ pub fn init_virtio() {
 
         virtio_dev.status.write(VIRTIO_STATUS_DRIVER_OK);
 
-        BLK_CAPACITY = virtio_dev.config.read() as u64 * SECTOR_SIZE;
+        BLK_CAPACITY = virtio_dev.config.read() as usize * SECTOR_SIZE;
         println!("virtio-blk: capacity is {}", { BLK_CAPACITY });
 
         BLK_REQ_PADDR = GLOBAL_ALLOC.alloc(Layout::new::<VirtioBlockReq>());
@@ -165,7 +165,7 @@ pub fn init_virtio() {
 struct VirtioBlockReq {
     ty: u32,
     reserved: u32,
-    sector: u64,
+    sector: usize,
     data: [u8; SECTOR_SIZE as usize],
     status: u8,
 }
@@ -208,7 +208,7 @@ pub struct VirtioVirtualQueue {
     last_index: u16,
 }
 
-pub fn read_write_disk(buf: *mut u8, sector: u64, write: bool) {
+pub fn read_write_disk(buf: *mut u8, sector: usize, write: bool) {
     let read_cap = unsafe { BLK_CAPACITY };
     let cap = read_cap / SECTOR_SIZE;
 
