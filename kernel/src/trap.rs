@@ -4,14 +4,12 @@ use crate::{
     interrupt,
     proc::{r#yield, Process, ProcessState},
     sbi::{sbi_getchar, sbi_putchar},
+    syscall,
     PROC_CURR,
 };
 
 pub const SCAUSE_ECALL: usize = 8;
 pub const SCAUSE_INT: usize = 1 << 63;
-pub const SYS_PUTCHAR: usize = 1;
-pub const SYS_GETCHAR: usize = 2;
-pub const SYS_EXIT: usize = 3;
 
 #[macro_export]
 macro_rules! read_csr {
@@ -136,8 +134,8 @@ fn trap_handler(f: &mut TrapFrame) {
     let stval = read_csr!("stval");
 
     if scause == SCAUSE_ECALL {
-        handle_syscall(f);
-        write_csr!("sepc", sepc + 8);
+        syscall::handle_syscall(f);
+        write_csr!("sepc", sepc + 4);
         return;
     }
 
@@ -175,63 +173,38 @@ fn trap_handler(f: &mut TrapFrame) {
     );
 }
 
-fn handle_syscall(f: &mut TrapFrame) {
-    match f.a3 {
-        SYS_PUTCHAR => {
-            // sbi_putchar(b'J');
-            sbi_putchar(f.a0 as u8);
-            ()
-        }
-        SYS_GETCHAR => loop {
-            let char = sbi_getchar();
-            if char >= 0 {
-                f.a0 = char as usize;
-                break;
-            }
-            r#yield();
-        },
-        SYS_EXIT => {
-            let curr_proc: &mut Process = unsafe { PROC_CURR.unwrap().as_mut().unwrap() };
-            println!("Process exiting: {}", curr_proc.pid);
-            curr_proc.state = ProcessState::Exited;
-            r#yield();
-        }
-        call => panic!("Unimplemented syscall {}", call),
-    }
-}
-
 #[repr(C, packed)]
 #[derive(Debug)]
-struct TrapFrame {
-    ra: usize,
-    gp: usize,
-    tp: usize,
-    t0: usize,
-    t1: usize,
-    t2: usize,
-    t3: usize,
-    t4: usize,
-    t5: usize,
-    t6: usize,
-    a0: usize,
-    a1: usize,
-    a2: usize,
-    a3: usize,
-    a4: usize,
-    a5: usize,
-    a6: usize,
-    a7: usize,
-    s0: usize,
-    s1: usize,
-    s2: usize,
-    s3: usize,
-    s4: usize,
-    s5: usize,
-    s6: usize,
-    s7: usize,
-    s8: usize,
-    s9: usize,
-    s10: usize,
-    s11: usize,
-    sp: usize,
+pub struct TrapFrame {
+    pub ra: usize,
+    pub gp: usize,
+    pub tp: usize,
+    pub t0: usize,
+    pub t1: usize,
+    pub t2: usize,
+    pub t3: usize,
+    pub t4: usize,
+    pub t5: usize,
+    pub t6: usize,
+    pub a0: usize,
+    pub a1: usize,
+    pub a2: usize,
+    pub a3: usize,
+    pub a4: usize,
+    pub a5: usize,
+    pub a6: usize,
+    pub a7: usize,
+    pub s0: usize,
+    pub s1: usize,
+    pub s2: usize,
+    pub s3: usize,
+    pub s4: usize,
+    pub s5: usize,
+    pub s6: usize,
+    pub s7: usize,
+    pub s8: usize,
+    pub s9: usize,
+    pub s10: usize,
+    pub s11: usize,
+    pub sp: usize,
 }

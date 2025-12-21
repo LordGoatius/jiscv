@@ -1,8 +1,8 @@
 use core::{
-    ascii::Char,
+    ascii::Char, ffi::CStr,
 };
 
-use ralloc::{borrow::ToOwned, format, string::ToString, vec::Vec};
+use ralloc::{format, vec::Vec};
 
 use crate::virtio::{read_write_disk, SECTOR_SIZE};
 
@@ -12,15 +12,15 @@ pub enum Type {
     File = b'0',
     Link = b'1',
     SymLink = b'2',
-    CharSpec = b'3',
-    BlockSpec = b'4',
+    CharDev = b'3',
+    BlockDev = b'4',
     Dir = b'5',
-    FIFO = b'6',
-    ContigFile = b'7',
+    Pipe = b'6',
+    ContiguousFile = b'7',
     GlobalExtHeader = b'g',
     ExtHeaderNext = b'x',
     // VendorExt    = b'A'..=b'Z',
-    // Enums with ranges for discriminants would be fascinating
+    // Enums with ranges for discriminants would be fascinating. I should add them
 }
 
 #[repr(C)]
@@ -121,4 +121,36 @@ pub fn tar_fs_flush(files: &mut [File], index: usize) {
     }
 
     read_write_disk(&raw mut tar as *mut u8, file.offset, true);
+}
+
+#[derive(Debug)]
+pub enum FileReadError {
+    FileNotFound,
+    BufferTooLarge,
+}
+
+pub fn read(files: &[File], name: &[u8], buffer: &mut [u8]) -> Result<(), FileReadError> {
+    for file in files {
+        if file.name[0..name.len()].as_bytes() == name {
+            let len = buffer.len();
+            if len > file.size {
+                return Err(FileReadError::BufferTooLarge)
+            }
+
+            buffer[..].copy_from_slice(&file.data[0..len]);
+            return Ok(());
+        }
+    }
+
+    Err(FileReadError::FileNotFound)
+}
+
+pub fn list(files: &[File]) -> Result<(), FileReadError> {
+    for file in files {
+        let name = CStr::from_bytes_until_nul(file.name.as_bytes()).unwrap().to_str().unwrap();
+        let size = file.size;
+        let index = file.offset;
+        println!("{name}: {size} bytes, index: {index}");
+    }
+    Ok(())
 }

@@ -4,12 +4,12 @@
     arbitrary_self_types,
     arbitrary_self_types_pointers,
     ascii_char,
+    ascii_char_variants,
     ptr_as_ref_unchecked,
     naked_functions_rustic_abi,
     const_trait_impl,
     const_default,
     pointer_is_aligned_to,
-    abi_riscv_interrupt
 )]
 #![no_std]
 #![no_main]
@@ -28,6 +28,7 @@ mod print;
 mod trap;
 mod virtio;
 mod tar;
+mod syscall;
 
 mod dtree;
 mod user;
@@ -35,13 +36,14 @@ mod user;
 use core::arch::asm;
 use core::panic::PanicInfo;
 
+use ralloc::boxed::Box;
 use spin::lazy::Lazy;
 
 use crate::alloc::GLOBAL_ALLOC;
 use crate::dtree::DeviceTreeHeader;
 use crate::proc::{create_process, r#yield, Process};
 use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
-use crate::virtio::{SECTOR_SIZE, read_write_disk};
+use crate::virtio::SECTOR_SIZE;
 
 unsafe extern "C" {
     static mut __bss: u8;
@@ -68,6 +70,9 @@ static mut PROC_IDLE: Lazy<*mut Process> =
     Lazy::new(|| create_process(core::ptr::null_mut(), 0).unwrap());
 
 pub static mut PROC_CURR: Option<*mut Process> = None;
+
+pub trait Filesystem {}
+pub static mut FILESYSTEM: Option<Box<dyn Filesystem>> = None;
 
 fn main() -> ! {
     let devicetree = unsafe {
@@ -97,32 +102,16 @@ fn main() -> ! {
 
     let mut buf: [u8; SECTOR_SIZE as usize] = [0; SECTOR_SIZE as usize];
 
-    read_write_disk(buf.as_mut_ptr(), 0, false);
-    println!("{}", unsafe { str::from_utf8_unchecked(&buf) });
-    read_write_disk(buf.as_mut_ptr(), 1, false);
-    print!("{}", unsafe { str::from_utf8_unchecked(&buf) });
-    read_write_disk(buf.as_mut_ptr(), 2, false);
-    println!("{}", unsafe { str::from_utf8_unchecked(&buf) });
-    read_write_disk(buf.as_mut_ptr(), 3, false);
-    print!("{}", unsafe { str::from_utf8_unchecked(&buf) });
-    read_write_disk(buf.as_mut_ptr(), 4, false);
-    print!("{}", unsafe { str::from_utf8_unchecked(&buf) });
-    read_write_disk(buf.as_mut_ptr(), 5, false);
-    println!("{}", unsafe { str::from_utf8_unchecked(&buf) });
-
-    // buf[0..22].copy_from_slice(b"Hello from the kernel!");
-    // read_write_disk(buf.as_mut_ptr(), 0, true);
-    
     interrupt::interrupt_enable();
 
     let mut files = tar::init_fs_tar();
+    let mut buf: [u8; 76] = [0; 76];
+    tar::read(&files, b"fileone.txt", &mut buf).unwrap();
+    println!("{}", str::from_utf8(&buf).unwrap());
     files[0].name[0..5].copy_from_slice(unsafe { b"Jimmy".as_ascii_unchecked() });
     tar::tar_fs_flush(&mut files, 0);
     tar::tar_fs_flush(&mut files, 1);
-    read_write_disk(buf.as_mut_ptr(), 0, false);
-    println!("{}", unsafe { str::from_utf8_unchecked(&buf) });
-    read_write_disk(buf.as_mut_ptr(), 1, false);
-    print!("{}", unsafe { str::from_utf8_unchecked(&buf) });
+    let _ = tar::list(&files);
 
     unsafe {
         PROC_CURR = Some(*PROC_IDLE);
