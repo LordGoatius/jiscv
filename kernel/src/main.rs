@@ -1,15 +1,16 @@
 #![feature(
-    int_from_ascii,
-    trim_prefix_suffix,
     arbitrary_self_types,
     arbitrary_self_types_pointers,
     ascii_char,
     ascii_char_variants,
+    const_default,
+    const_trait_impl,
+    int_from_ascii,
+    trim_prefix_suffix,
     ptr_as_ref_unchecked,
     naked_functions_rustic_abi,
-    const_trait_impl,
-    const_default,
     pointer_is_aligned_to,
+    str_from_raw_parts,
 )]
 #![no_std]
 #![no_main]

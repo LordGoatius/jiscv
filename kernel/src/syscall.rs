@@ -1,3 +1,5 @@
+use core::{slice, str};
+
 use crate::{PROC_CURR, proc::{Process, ProcessState, r#yield}, sbi::{sbi_getchar, sbi_putchar}, trap::TrapFrame};
 
 pub const SYS_PUTCHAR: usize = 1;
@@ -10,7 +12,6 @@ pub fn handle_syscall(f: &mut TrapFrame) {
     match f.a3 {
         SYS_PUTCHAR => {
             sbi_putchar(f.a0 as u8);
-            ()
         }
         SYS_GETCHAR => loop {
             let char = sbi_getchar();
@@ -19,12 +20,48 @@ pub fn handle_syscall(f: &mut TrapFrame) {
                 break;
             }
             r#yield();
-        },
+        }
         SYS_EXIT => {
             let curr_proc: &mut Process = unsafe { PROC_CURR.unwrap().as_mut().unwrap() };
             println!("Process exiting: {}", curr_proc.pid);
             curr_proc.state = ProcessState::Exited;
             r#yield();
+        }
+        SYS_WRITE => {
+            let name_ptr = f.a0 as *const u8;
+            let name_size = f.a1 as usize;
+            // # Safety:
+            // The shell syscall wraps taking in a rust &str and deconstructs it
+            // behind the scenes, exposing only a safe interface where safe
+            // rust can verify a valid &str
+            let name = unsafe { str::from_raw_parts(name_ptr, name_size) };
+
+            let buf_ptr = f.a2 as *const u8;
+            let buf_size = f.a3 as usize;
+            // # Safety:
+            // The shell syscall wraps taking in a rust &[u8] and deconstructs it
+            // behind the scenes, exposing only a safe interface where safe
+            // rust can verify a valid &[u8]
+            let buf = unsafe { slice::from_raw_parts(buf_ptr, buf_size) };
+            todo!()
+        }
+        SYS_READ => {
+            let name_ptr = f.a0 as *const u8;
+            let name_size = f.a1 as usize;
+            // # Safety:
+            // The shell syscall wraps taking in a rust &str and deconstructs it
+            // behind the scenes, exposing only a safe interface where safe
+            // rust can verify a valid &str
+            let name = unsafe { str::from_raw_parts(name_ptr, name_size) };
+
+            let buf_ptr = f.a2 as *mut u8;
+            let buf_size = f.a3 as usize;
+            // # Safety:
+            // The shell syscall wraps taking in a rust &[u8] and deconstructs it
+            // behind the scenes, exposing only a safe interface where safe
+            // rust can verify a valid &[u8]
+            let buf = unsafe { slice::from_raw_parts_mut(buf_ptr, buf_size) };
+            todo!()
         }
         call => panic!("Unimplemented syscall {}", call),
     }
