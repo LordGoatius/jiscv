@@ -101,7 +101,21 @@ pub fn init_fs_tar() -> Vec<File> {
     files
 }
 
-pub fn tar_fs_flush(files: &mut [File], index: usize) {
+#[derive(Debug)]
+#[repr(isize)]
+pub enum FileResult {
+    Ok(usize) = 0,
+    Err(FileErr) = -1,
+}
+
+#[derive(Debug)]
+#[repr(usize)]
+pub enum FileErr {
+    FileNotFound, 
+    BufferTooLarge
+}
+
+pub fn flush(files: &mut [File], index: usize) {
     let mut buf: [u8; SECTOR_SIZE] = [0; SECTOR_SIZE];
     let mut file = files[index];
 
@@ -123,34 +137,28 @@ pub fn tar_fs_flush(files: &mut [File], index: usize) {
     read_write_disk(&raw mut tar as *mut u8, file.offset, true);
 }
 
-#[derive(Debug)]
-pub enum FileReadError {
-    FileNotFound,
-    BufferTooLarge,
-}
-
-pub fn read(files: &[File], name: &[u8], buffer: &mut [u8]) -> Result<(), FileReadError> {
+pub fn read(files: &[File], name: &str, buffer: &mut [u8]) -> FileResult {
     for file in files {
-        if file.name[0..name.len()].as_bytes() == name {
+        if file.name[0..name.len()].as_bytes() == name.as_bytes() {
             let len = buffer.len();
             if len > file.size {
-                return Err(FileReadError::BufferTooLarge)
+                return FileResult::Err(FileErr::FileNotFound)
             }
 
             buffer[..].copy_from_slice(&file.data[0..len]);
-            return Ok(());
+            return FileResult::Ok(0);
         }
     }
 
-    Err(FileReadError::FileNotFound)
+    FileResult::Err(FileErr::FileNotFound)
 }
 
-pub fn list(files: &[File]) -> Result<(), FileReadError> {
+pub fn list(files: &[File]) -> FileResult {
     for file in files {
         let name = CStr::from_bytes_until_nul(file.name.as_bytes()).unwrap().to_str().unwrap();
         let size = file.size;
         let index = file.offset;
         println!("{name}: {size} bytes, index: {index}");
     }
-    Ok(())
+    FileResult::Ok(0)
 }

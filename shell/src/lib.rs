@@ -48,11 +48,18 @@ impl Shell {
 
     fn run_command(&mut self) {
         let command: &str = (&self.buffer[0..self.size]).as_str();
+        let mut command_split = command.split_whitespace();
+        let comm = command_split.next().unwrap();
 
         println!();
-        match command {
+        match comm {
             "hello" => print!("Hello!"),
             "exit" => exit(),
+            "read" => {
+                let mut buf = [0u8; 76];
+                read(command_split.next().unwrap(), &mut buf);
+                print!("{}", str::from_utf8(&buf).unwrap());
+            }
             _ => print!("Invalid command. Please try again."),
         }
     }
@@ -64,16 +71,29 @@ impl Shell {
 
 #[unsafe(no_mangle)]
 pub fn putchar(char: u8) {
-    syscall(SYS_PUTCHAR, char as usize, 0, 0);
+    syscall(SYS_PUTCHAR, char as usize, 0, 0, 0);
 }
 
 #[unsafe(no_mangle)]
 pub fn getchar() -> u8 {
-    syscall(SYS_GETCHAR, 0, 0, 0) as u8
+    match syscall(SYS_GETCHAR, 0, 0, 0, 0) {
+        FileResult::Ok(val) => val as u8,
+        FileResult::Err(file_err) => panic!(),
+    }
 }
 
 #[unsafe(no_mangle)]
 pub fn exit() -> ! {
-    syscall(SYS_EXIT, 0, 0, 0);
+    syscall(SYS_EXIT, 0, 0, 0, 0);
     loop {}
+}
+
+pub fn read(name: &str, buf: &mut [u8]) -> FileResult {
+    let str_ptr = name.as_ptr() as usize;
+    let str_len = name.len();
+
+    let buf_ptr = buf.as_ptr() as usize;
+    let buf_len = buf.len();
+
+    syscall(SYS_READ, str_ptr, str_len, buf_ptr, buf_len)
 }

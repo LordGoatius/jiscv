@@ -1,6 +1,6 @@
 use core::{slice, str};
 
-use crate::{PROC_CURR, proc::{Process, ProcessState, r#yield}, sbi::{sbi_getchar, sbi_putchar}, trap::TrapFrame};
+use crate::{PROC_CURR, get_fs_unwrap, proc::{Process, ProcessState, r#yield}, sbi::{sbi_getchar, sbi_putchar}, tar, trap::TrapFrame};
 
 pub const SYS_PUTCHAR: usize = 1;
 pub const SYS_GETCHAR: usize = 2;
@@ -9,14 +9,16 @@ pub const SYS_WRITE: usize = 4;
 pub const SYS_READ: usize = 5;
 
 pub fn handle_syscall(f: &mut TrapFrame) {
-    match f.a3 {
+    match f.a4 {
         SYS_PUTCHAR => {
             sbi_putchar(f.a0 as u8);
+            f.a0 = 0;
         }
         SYS_GETCHAR => loop {
             let char = sbi_getchar();
             if char >= 0 {
-                f.a0 = char as usize;
+                f.a0 = 0;
+                f.a1 = char as usize;
                 break;
             }
             r#yield();
@@ -43,7 +45,6 @@ pub fn handle_syscall(f: &mut TrapFrame) {
             // behind the scenes, exposing only a safe interface where safe
             // rust can verify a valid &[u8]
             let buf = unsafe { slice::from_raw_parts(buf_ptr, buf_size) };
-            todo!()
         }
         SYS_READ => {
             let name_ptr = f.a0 as *const u8;
@@ -61,7 +62,12 @@ pub fn handle_syscall(f: &mut TrapFrame) {
             // behind the scenes, exposing only a safe interface where safe
             // rust can verify a valid &[u8]
             let buf = unsafe { slice::from_raw_parts_mut(buf_ptr, buf_size) };
-            todo!()
+
+            let res = tar::read(get_fs_unwrap(), name, buf);
+
+            let arr: [usize; 2] = unsafe { core::mem::transmute(res) };
+            f.a0 = arr[0];
+            f.a1 = arr[1];
         }
         call => panic!("Unimplemented syscall {}", call),
     }

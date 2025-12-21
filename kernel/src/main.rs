@@ -12,6 +12,7 @@
     pointer_is_aligned_to,
     str_from_raw_parts,
 )]
+#![allow(static_mut_refs)]
 #![no_std]
 #![no_main]
 
@@ -38,11 +39,13 @@ use core::arch::asm;
 use core::panic::PanicInfo;
 
 use ralloc::boxed::Box;
+use ralloc::vec::Vec;
 use spin::lazy::Lazy;
 
 use crate::alloc::GLOBAL_ALLOC;
 use crate::dtree::DeviceTreeHeader;
 use crate::proc::{create_process, r#yield, Process};
+use crate::tar::File;
 use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
 use crate::virtio::SECTOR_SIZE;
 
@@ -73,7 +76,14 @@ static mut PROC_IDLE: Lazy<*mut Process> =
 pub static mut PROC_CURR: Option<*mut Process> = None;
 
 pub trait Filesystem {}
-pub static mut FILESYSTEM: Option<Box<dyn Filesystem>> = None;
+pub static mut FILESYSTEM: Option<Vec<File>> = None;
+
+// Don't really think this is safe
+pub fn get_fs_unwrap() -> &'static mut [File] {
+    unsafe {
+        FILESYSTEM.as_mut().unwrap()
+    }
+}
 
 fn main() -> ! {
     let devicetree = unsafe {
@@ -101,17 +111,11 @@ fn main() -> ! {
 
     virtio::init_virtio();
 
-    let mut buf: [u8; SECTOR_SIZE as usize] = [0; SECTOR_SIZE as usize];
-
     interrupt::interrupt_enable();
 
-    let mut files = tar::init_fs_tar();
-    let mut buf: [u8; 76] = [0; 76];
-    tar::read(&files, b"fileone.txt", &mut buf).unwrap();
-    println!("{}", str::from_utf8(&buf).unwrap());
-    files[0].name[0..5].copy_from_slice(unsafe { b"Jimmy".as_ascii_unchecked() });
-    tar::tar_fs_flush(&mut files, 0);
-    tar::tar_fs_flush(&mut files, 1);
+    unsafe { FILESYSTEM = Some(tar::init_fs_tar()) };
+
+    let files = get_fs_unwrap();
     let _ = tar::list(&files);
 
     unsafe {
