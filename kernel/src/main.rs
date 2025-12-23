@@ -5,12 +5,14 @@
     ascii_char_variants,
     const_default,
     const_trait_impl,
+    custom_inner_attributes,
     int_from_ascii,
-    trim_prefix_suffix,
-    ptr_as_ref_unchecked,
     naked_functions_rustic_abi,
     pointer_is_aligned_to,
+    ptr_as_ref_unchecked,
+    riscv_ext_intrinsics,
     str_from_raw_parts,
+    trim_prefix_suffix,
 )]
 #![allow(static_mut_refs)]
 #![no_std]
@@ -30,6 +32,7 @@ mod print;
 mod trap;
 mod virtio;
 mod tar;
+mod ext2;
 mod syscall;
 
 mod dtree;
@@ -38,7 +41,6 @@ mod user;
 use core::arch::asm;
 use core::panic::PanicInfo;
 
-use ralloc::boxed::Box;
 use ralloc::vec::Vec;
 use spin::lazy::Lazy;
 
@@ -47,7 +49,6 @@ use crate::dtree::DeviceTreeHeader;
 use crate::proc::{create_process, r#yield, Process};
 use crate::tar::File;
 use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
-use crate::virtio::SECTOR_SIZE;
 
 unsafe extern "C" {
     static mut __bss: u8;
