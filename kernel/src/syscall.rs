@@ -2,11 +2,7 @@ use core::{slice, str};
 
 use crate::{PROC_CURR, get_fs_unwrap, proc::{Process, ProcessState, r#yield}, sbi::{sbi_getchar, sbi_putchar}, tar, trap::TrapFrame};
 
-pub const SYS_PUTCHAR: usize = 1;
-pub const SYS_GETCHAR: usize = 2;
-pub const SYS_EXIT: usize = 3;
-pub const SYS_WRITE: usize = 4;
-pub const SYS_READ: usize = 5;
+use utils::syscall::consts::*;
 
 pub fn handle_syscall(f: &mut TrapFrame) {
     match f.a4 {

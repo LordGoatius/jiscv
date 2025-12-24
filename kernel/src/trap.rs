@@ -2,10 +2,7 @@ use core::arch::naked_asm;
 
 use crate::{
     interrupt,
-    proc::{r#yield, Process, ProcessState},
-    sbi::{sbi_getchar, sbi_putchar},
     syscall,
-    PROC_CURR,
 };
 
 pub const SCAUSE_ECALL: usize = 8;

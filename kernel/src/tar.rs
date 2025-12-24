@@ -6,6 +6,8 @@ use ralloc::{format, vec::Vec};
 
 use crate::virtio::{read_write_disk, SECTOR_SIZE};
 
+use utils::{FileErr, FileResult};
+
 #[repr(u8)]
 #[derive(Clone, Copy, Debug)]
 pub enum Type {
@@ -99,20 +101,6 @@ pub fn init_fs_tar() -> Vec<File> {
     }
 
     files
-}
-
-#[derive(Debug)]
-#[repr(isize)]
-pub enum FileResult {
-    Ok(usize) = 0,
-    Err(FileErr) = -1,
-}
-
-#[derive(Debug)]
-#[repr(usize)]
-pub enum FileErr {
-    FileNotFound, 
-    BufferTooLarge
 }
 
 pub fn flush(files: &mut [File], index: usize) {

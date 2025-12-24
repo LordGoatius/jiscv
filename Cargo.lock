@@ -7,6 +7,7 @@ name = "kernel"
 version = "0.1.0"
 dependencies = [
  "spin",
+ "utils",
 ]
 
 [[package]]
@@ -27,6 +28,9 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 [[package]]
 name = "shell"
 version = "0.1.0"
+dependencies = [
+ "utils",
+]
 
 [[package]]
 name = "spin"
@@ -36,3 +40,7 @@ checksum = "d5fe4ccb98d9c292d56fec89a5e07da7fc4cf0dc11e156b41793132775d3e591"
 dependencies = [
  "lock_api",
 ]
+
+[[package]]
+name = "utils"
+version = "0.1.0"

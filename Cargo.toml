@@ -3,7 +3,8 @@ resolver = "1"
 
 members = [
   "kernel",
-  "shell"
+  "shell",
+  "utils"
 ]
 
 [profile.dev]
