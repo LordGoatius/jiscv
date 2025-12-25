@@ -76,6 +76,7 @@ static mut PROC_IDLE: Lazy<*mut Process> =
 
 pub static mut PROC_CURR: Option<*mut Process> = None;
 
+// Use trait for VFS later lol
 pub trait Filesystem {}
 pub static mut FILESYSTEM: Option<Vec<File>> = None;
 

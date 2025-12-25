@@ -208,6 +208,113 @@ pub struct VirtioVirtualQueue {
     last_index: u16,
 }
 
+// Rust style function signature
+// TODO: Better idiomatic rust within function
+pub fn read_disk(buf: &mut [u8; 512], sector: usize) {
+    let read_cap = unsafe { BLK_CAPACITY };
+    let cap = read_cap / SECTOR_SIZE;
+
+    if sector >= cap {
+        println!(
+            "virtio: tried to access sector {}, but capacity is {}",
+            sector, cap
+        );
+    }
+
+    unsafe {
+        let req = BLK_REQ;
+        (*req).sector = sector;
+        (*req).ty = VIRTIO_BLK_T_IN;
+
+        let vq = BLK_REQUEST_VQ;
+        let paddr = BLK_REQ_PADDR;
+
+        (*vq).descs[0].addr = paddr;
+        (*vq).descs[0].len = (size_of::<u32>() * 2 + size_of::<u64>()) as u32;
+        (*vq).descs[0].flags = VIRTQ_DESC_F_NEXT;
+        (*vq).descs[0].next = 1;
+
+        (*vq).descs[1].addr = paddr.add(offset_of!(VirtioBlockReq, data));
+        (*vq).descs[1].len = SECTOR_SIZE as u32;
+        (*vq).descs[1].flags = VIRTQ_DESC_F_NEXT | VIRTQ_DESC_F_WRITE;
+        (*vq).descs[1].next = 2;
+
+        (*vq).descs[2].addr = paddr.add(offset_of!(VirtioBlockReq, status));
+        (*vq).descs[2].len = 1;
+        (*vq).descs[2].flags = VIRTQ_DESC_F_WRITE;
+
+        vq.kick(0);
+
+        while vq.is_busy() {}
+
+        if (*req).status != 0 {
+            println!(
+                "virtio: failed to access sector {}, status = {}",
+                sector,
+                (*req).status
+            );
+            return;
+        }
+
+        buf.copy_from_slice(&(*req).data);
+    }
+    
+}
+
+// Rust style function signature
+// TODO: Better idiomatic rust within function
+pub fn write_disk(buf: &[u8; 512], sector: usize) {
+    let read_cap = unsafe { BLK_CAPACITY };
+    let cap = read_cap / SECTOR_SIZE;
+
+    if sector >= cap {
+        println!(
+            "virtio: tried to access sector {}, but capacity is {}",
+            sector, cap
+        );
+    }
+
+    unsafe {
+        let req = BLK_REQ;
+        (*req).sector = sector;
+        (*req).ty = VIRTIO_BLK_T_OUT;
+
+        (*req)
+            .data
+            .copy_from_slice(buf);
+
+        let vq = BLK_REQUEST_VQ;
+        let paddr = BLK_REQ_PADDR;
+
+        (*vq).descs[0].addr = paddr;
+        (*vq).descs[0].len = (size_of::<u32>() * 2 + size_of::<u64>()) as u32;
+        (*vq).descs[0].flags = VIRTQ_DESC_F_NEXT;
+        (*vq).descs[0].next = 1;
+
+        (*vq).descs[1].addr = paddr.add(offset_of!(VirtioBlockReq, data));
+        (*vq).descs[1].len = SECTOR_SIZE as u32;
+        (*vq).descs[1].flags = VIRTQ_DESC_F_NEXT;
+        (*vq).descs[1].next = 2;
+
+        (*vq).descs[2].addr = paddr.add(offset_of!(VirtioBlockReq, status));
+        (*vq).descs[2].len = 1;
+        (*vq).descs[2].flags = VIRTQ_DESC_F_WRITE;
+
+        vq.kick(0);
+
+        while vq.is_busy() {}
+
+        if (*req).status != 0 {
+            println!(
+                "virtio: failed to access sector {}, status = {}",
+                sector,
+                (*req).status
+            );
+            return;
+        }
+    }
+}
+
 pub fn read_write_disk(buf: *mut u8, sector: usize, write: bool) {
     let read_cap = unsafe { BLK_CAPACITY };
     let cap = read_cap / SECTOR_SIZE;
