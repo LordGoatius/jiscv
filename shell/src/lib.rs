@@ -5,17 +5,20 @@ use core::ascii::Char;
 
 use crate::syscall::*;
 
-mod syscall;
 pub mod print;
+mod syscall;
 
 pub struct Shell {
     buffer: [Char; 80],
-    size: usize
+    size: usize,
 }
 
 impl Default for Shell {
     fn default() -> Self {
-        Self { buffer: [Char::Null; 80], size: 0 }
+        Self {
+            buffer: [Char::Null; 80],
+            size: 0,
+        }
     }
 }
 
@@ -31,12 +34,12 @@ impl Shell {
             print!("\r> {}", self.buffer.as_str());
 
             let char: Char = match Char::from_u8(getchar()) {
-                Some(Char::CarriageReturn | Char::LineFeed) =>  {
+                Some(Char::CarriageReturn | Char::LineFeed) => {
                     let command_result = self.run_command();
                     self.reset();
                     println!();
                     continue;
-                },
+                }
                 Some(char) => char,
                 None => continue,
             };
@@ -57,7 +60,16 @@ impl Shell {
             "exit" => exit(),
             "read" => {
                 let mut buf = [0u8; 76];
-                read(command_split.next().unwrap(), &mut buf);
+                match command_split.next() {
+                    Some(name) => {
+                        read(name, &mut buf);
+                    }
+                    None => {
+                        println!("Please provide a file name");
+                        return;
+                    }
+                }
+
                 print!("{}", str::from_utf8(&buf).unwrap());
             }
             _ => print!("Invalid command. Please try again."),

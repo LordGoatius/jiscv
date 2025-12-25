@@ -4,7 +4,7 @@ use core::{
 
 use ralloc::{format, vec::Vec};
 
-use crate::virtio::{read_write_disk, SECTOR_SIZE};
+use crate::virtio::{SECTOR_SIZE, read_disk, read_write_disk};
 
 use utils::{FileErr, FileResult};
 
@@ -64,8 +64,7 @@ pub fn init_fs_tar() -> Vec<File> {
     let mut files = Vec::new();
 
     let mut buf: [u8; SECTOR_SIZE] = [0; SECTOR_SIZE];
-    let sector = &mut buf[0..SECTOR_SIZE];
-    read_write_disk(sector.as_mut_ptr(), 0, false);
+    read_disk(&mut buf, 0);
 
     let mut traversed_sectors = 1;
     let mut tar = unsafe { *(buf.as_mut_ptr() as *mut Tar) };

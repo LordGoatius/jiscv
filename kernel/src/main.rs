@@ -49,6 +49,7 @@ use crate::dtree::DeviceTreeHeader;
 use crate::proc::{create_process, r#yield, Process};
 use crate::tar::File;
 use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
+use crate::virtio::{read_disk, write_disk};
 
 unsafe extern "C" {
     static mut __bss: u8;
@@ -88,13 +89,16 @@ pub fn get_fs_unwrap() -> &'static mut [File] {
 }
 
 fn main() -> ! {
-    let devicetree = unsafe {
-        let temp: usize;
+    let (devicetree, hart_start) = unsafe {
+        let temp1: usize;
+        let temp2: usize;
         asm!(
             "mv {}, a1",
-            out(reg) temp,
+            "mv {}, a0",
+            out(reg) temp1,
+            out(reg) temp2,
         );
-        temp as *mut DeviceTreeHeader
+        (temp1 as *mut DeviceTreeHeader, temp2)
     };
 
     unsafe {
@@ -106,19 +110,18 @@ fn main() -> ! {
     }
 
     println!("Booting JimOS");
+    println!("Starting Hart: {hart_start}");
 
     GLOBAL_ALLOC.init(&raw mut __heap, &raw mut __heap_end);
 
     let dtree = dtree::parse(devicetree);
+    println!("{dtree:#?}");
 
     virtio::init_virtio();
 
     interrupt::interrupt_enable();
 
     unsafe { FILESYSTEM = Some(tar::init_fs_tar()) };
-
-    let files = get_fs_unwrap();
-    let _ = tar::list(&files);
 
     unsafe {
         PROC_CURR = Some(*PROC_IDLE);

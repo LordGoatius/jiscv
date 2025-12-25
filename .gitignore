@@ -4,5 +4,6 @@ qemu.log
 *.bin
 *.bin.o
 disk.tar
+disk.img
 lorem.txt
 out

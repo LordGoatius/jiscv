@@ -154,7 +154,7 @@ pub fn init_virtio() {
         virtio_dev.status.write(VIRTIO_STATUS_DRIVER_OK);
 
         BLK_CAPACITY = virtio_dev.config.read() as usize * SECTOR_SIZE;
-        println!("virtio-blk: capacity is {}", { BLK_CAPACITY });
+        println!("virtio-blk: capacity is 0x{:x}", { BLK_CAPACITY });
 
         BLK_REQ_PADDR = GLOBAL_ALLOC.alloc(Layout::new::<VirtioBlockReq>());
         BLK_REQ = BLK_REQ_PADDR.cast();
