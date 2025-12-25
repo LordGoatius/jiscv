@@ -6,7 +6,9 @@
     const_default,
     const_trait_impl,
     custom_inner_attributes,
+    debug_closure_helpers,
     int_from_ascii,
+    generic_const_exprs, // I accept the risk, but it's so cool and useful
     naked_functions_rustic_abi,
     pointer_is_aligned_to,
     ptr_as_ref_unchecked,

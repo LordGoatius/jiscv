@@ -1,4 +1,4 @@
-use core::{fmt::Display, slice};
+use core::{fmt::{Debug, Display}, slice};
 
 use ralloc::vec::Vec;
 
@@ -50,23 +50,34 @@ pub struct DeviceTreeHeader {
     pub size_dt_struct: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DeviceTree {
-    node_list: Vec<DeviceTreeNode>,
+    node_list_root: DeviceTreeNode,
     resvd_mem: Vec<MemResBlock>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DeviceTreeNode {
     name: &'static str,
     properties: Vec<DeviceTreeProperty>,
     child_node: Vec<DeviceTreeNode>,
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct DeviceTreeProperty {
     name: &'static str,
     value: &'static [u8],
+}
+
+impl Debug for DeviceTreeProperty {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("DeviceTreeProperty")
+            .field("name", &self.name)
+            .field_with("value", |f| {
+                write!(f, "{:?}", self.value)
+            })
+            .finish()
+    }
 }
 
 #[repr(C)]
@@ -132,10 +143,10 @@ impl DeviceTreeParser {
 
     pub fn parse(&self) -> DeviceTree {
         let resvd_mem = self.parse_reserved_mem();
-        let node_list = self.parse_nodes();
+        let node_list_root = self.parse_nodes().into_iter().next().unwrap();
 
         DeviceTree {
-            node_list,
+            node_list_root,
             resvd_mem,
         }
     }
@@ -319,3 +330,50 @@ impl Display for DeviceTreeHeader {
         write!(f, "}}")
     }
 }
+
+pub enum PropertyValues {
+    Empty,
+    U32,
+    U64,
+    String,
+    PropEncArr,
+    PHandle,
+    StrList
+}
+
+pub struct StdProperty {
+    name: &'static str,
+    value: PropertyValues
+}
+
+macro_rules! define_prop {
+    ($name:literal, $ty:ident) => {
+        StdProperty {
+            name: $name,
+            value: PropertyValues::$ty
+        }
+    };
+}
+
+macro_rules! def_prop_list {
+    (($(($($args:tt)*)),* $(,)?)) => {
+        static STANDARD_PROPERTIES: [StdProperty; 12] = [$(
+            define_prop!($($args)*),
+        )*];
+    };
+}
+
+def_prop_list!((
+    ("compatible", StrList),
+    ("model", String),
+    ("phandle", U32),
+    ("status", String),
+    ("#address-cells", U32),
+    ("#size-cells", U32),
+    ("reg", PropEncArr),
+    ("virtual-reg", U32),
+    ("ranges", PropEncArr),
+    ("dma-ranges", PropEncArr),
+    ("name", String),
+    ("device_type", String),
+));
