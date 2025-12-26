@@ -1,6 +1,19 @@
 #![rustfmt::skip]
 
-#[repr(C, packed)]
+use core::fmt::Debug;
+
+#[derive(Debug)]
+pub struct Ext2 {
+    blck_size: u32,
+    frag_size: u32,
+    inode_total: u32,
+    block_total: u32,
+    inode_per_bg: u32,
+    blk_per_bg: u32,
+    block_group_total: u32,
+}
+
+#[repr(C, packed(4))]
 pub struct Superblock {
     inode_num:                  u32, // Total number of inodes in file system
     block_num:                  u32, // Total number of blocks in file system
@@ -40,11 +53,30 @@ pub struct Superblock {
     prealloc_blocks:            u8,
     prealloc_dir:               u8,
     _0:                         u16,
-    journal_id:                 u128,
+    journal_id:                 [u8; 16],
     journal_inode:              u32,
     journal_dev:                u32,
     orphan_inode_head:          u32,
     _1:                         [u8; 788], // (Unused)
+}
+
+impl Superblock {
+    pub fn get_ext2(&self) -> Ext2 {
+        assert_eq!(
+            self.block_num / self.blocks_per_block_group,
+            self.inode_num / self.inodes_per_block_group,
+            "Make sure Ext2 FS is consistent"
+        );
+        Ext2 {
+            blck_size: 1024 >> self.blck_size_shift,
+            frag_size: 1024 >> self.frag_size_shift,
+            inode_total: self.inode_num,
+            block_total: self.block_num,
+            inode_per_bg: self.inodes_per_block_group,
+            blk_per_bg: self.blocks_per_block_group,
+            block_group_total: self.block_num / self.blocks_per_block_group
+        }
+    }
 }
 
 #[repr(C)]
@@ -162,12 +194,14 @@ pub const AFS_DIR:                u32 = 0x00020000; // AFS directory
 pub const JOUNRAL_FILE_DATA:      u32 = 0x00040000; // Journal file data 
 }
 
+#[derive(Debug, Clone, Copy)]
 #[repr(u16)]
 enum FsState {
     Clean = 1,
     Error = 2,
 }
 
+#[derive(Debug, Clone, Copy)]
 #[repr(u16)]
 enum ErrProc {
     Ignore    = 1,
@@ -175,6 +209,7 @@ enum ErrProc {
     Panic     = 3
 }
 
+#[derive(Debug, Clone, Copy)]
 #[repr(u32)]
 enum OsId {
     Linux   = 0,
@@ -222,3 +257,51 @@ pub const FILE_SIZE_64_BIT: u16 = 1 << 1;
 pub const DIR_CONTENTS_BIN_TREE: u16 = 1 << 2; 
 }
 
+// Ignore extra space unsed in Ext2
+impl Debug for Superblock {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Superblock")
+            .field("inode_num", &self.inode_num)
+            .field("block_num", &self.block_num)
+            .field("superuser_block_num", &self.superuser_block_num)
+            .field("unallocated_blocks", &self.unallocated_blocks)
+            .field("unallocated_inodes", &self.unallocated_inodes)
+            .field("superblock_block_num", &self.superblock_block_num)
+            .field("blck_size_shift", &self.blck_size_shift)
+            .field("frag_size_shift", &self.frag_size_shift)
+            .field("blocks_per_block_group", &self.blocks_per_block_group)
+            .field("fragments_per_block_group", &self.fragments_per_block_group)
+            .field("inodes_per_block_group", &self.inodes_per_block_group)
+            .field("last_mount_time_posix", &self.last_mount_time_posix)
+            .field("last_written_time_posix", &self.last_written_time_posix)
+            .field("mounts_since_fsck", &self.mounts_since_fsck)
+            .field("mounts_allowed_before_fsck", &self.mounts_allowed_before_fsck)
+            .field("ext2_magic", &self.ext2_magic)
+            .field("fs_state", &self.fs_state)
+            .field("error_procedure", &self.error_procedure)
+            .field("minor_version", &self.minor_version)
+            .field("last_fsck_posix", &self.last_fsck_posix)
+            .field("interval_fsck_posix", &self.interval_fsck_posix)
+            .field("fs_os_id", &self.fs_os_id)
+            .field("major_version", &self.major_version)
+            .field("user_id_use_res_blocks", &self.user_id_use_res_blocks)
+            .field("group_id_use_res_blocks", &self.group_id_use_res_blocks)
+            .field("first_nonres_inode", &self.first_nonres_inode)
+            .field("inode_size", &self.inode_size)
+            .field("block_group", &self.block_group)
+            .field("opt_feat", &self.opt_feat)
+            .field("req_feat", &self.req_feat)
+            .field("read_only_feat", &self.read_only_feat)
+            .field("fsid", &self.fsid)
+            .field("vol_name", &self.vol_name)
+            .field("last_mount_path", &self.last_mount_path)
+            .field("comp_alg", &self.comp_alg)
+            .field("prealloc_blocks", &self.prealloc_blocks)
+            .field("prealloc_dir", &self.prealloc_dir)
+            .field("journal_id", &self.journal_id)
+            .field("journal_inode", &self.journal_inode)
+            .field("journal_dev", &self.journal_dev)
+            .field("orphan_inode_head", &self.orphan_inode_head)
+            .finish_non_exhaustive()
+    }
+}

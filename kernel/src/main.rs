@@ -48,6 +48,7 @@ use spin::lazy::Lazy;
 
 use crate::alloc::GLOBAL_ALLOC;
 use crate::dtree::DeviceTreeHeader;
+use crate::ext2::{Ext2, Superblock};
 use crate::proc::{create_process, r#yield, Process};
 use crate::tar::File;
 use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
@@ -117,13 +118,22 @@ fn main() -> ! {
     GLOBAL_ALLOC.init(&raw mut __heap, &raw mut __heap_end);
 
     let dtree = dtree::parse(devicetree);
-    println!("{dtree:#?}");
+    // println!("{dtree:#?}");
 
     virtio::init_virtio();
 
     interrupt::interrupt_enable();
 
-    unsafe { FILESYSTEM = Some(tar::init_fs_tar()) };
+    let mut buf = [0u8; 1024];
+    read_disk(&mut buf[0..512], 2);
+    read_disk(&mut buf[512..], 3);
+
+    let superblock_ref: &Superblock = unsafe { buf.as_ptr().cast::<Superblock>().as_ref_unchecked() };
+    let fs: Ext2 = superblock_ref.get_ext2();
+    println!("{fs:#x?}");
+    // println!("{superblock_ref:#x?}");
+
+    // unsafe { FILESYSTEM = Some(tar::init_fs_tar()) };
 
     unsafe {
         PROC_CURR = Some(*PROC_IDLE);

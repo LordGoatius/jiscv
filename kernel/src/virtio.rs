@@ -210,7 +210,7 @@ pub struct VirtioVirtualQueue {
 
 // Rust style function signature
 // TODO: Better idiomatic rust within function
-pub fn read_disk(buf: &mut [u8; 512], sector: usize) {
+pub fn read_disk(buf: &mut [u8], sector: usize) {
     let read_cap = unsafe { BLK_CAPACITY };
     let cap = read_cap / SECTOR_SIZE;
 
@@ -263,7 +263,7 @@ pub fn read_disk(buf: &mut [u8; 512], sector: usize) {
 
 // Rust style function signature
 // TODO: Better idiomatic rust within function
-pub fn write_disk(buf: &[u8; 512], sector: usize) {
+pub fn write_disk(buf: &[u8], sector: usize) {
     let read_cap = unsafe { BLK_CAPACITY };
     let cap = read_cap / SECTOR_SIZE;
 
