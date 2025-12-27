@@ -7,4 +7,9 @@ members = [
   "utils"
 ]
 
+[workspace.dependencies]
+# Believe it or not, I'd rather not have this dependency, and learn how to write
+# these kinds of primitives myself.
+spin = "0.10.0"
+
 [profile.dev]

@@ -1,11 +1,16 @@
-#![no_std]
 #![feature(
+    cast_maybe_uninit,
     const_array,
+    const_default,
     const_trait_impl,
+    generic_atomic,
     maybe_uninit_array_assume_init,
+    maybe_uninit_uninit_array_transpose,
+    ptr_as_ref_unchecked,
     try_trait_v2,
     try_trait_v2_residual
 )]
+#![no_std]
 
 pub mod static_alloc;
 
