@@ -119,6 +119,8 @@ fn main() -> ! {
 
     let dtree = dtree::parse(devicetree);
     dtree.print_properties();
+    let prop = dtree.search("/cpus/cpu@0").unwrap();
+    prop.print(1);
     // println!("{dtree:#?}");
 
     virtio::init_virtio();

@@ -66,21 +66,21 @@ pub mod arena {
     use crate::syscall::SysErr;
     use core::mem::MaybeUninit;
 
-    pub struct Arena<T: Copy, const N: usize> {
+    pub struct Arena<T, const N: usize> {
         data: [MaybeUninit<T>; N],
         curr: usize,
     }
 
-    impl<T: Copy, const N: usize> const Default for Arena<T, N> {
+    impl<T, const N: usize> const Default for Arena<T, N> {
         fn default() -> Self {
             Arena {
-                data: [MaybeUninit::uninit(); N],
+                data: MaybeUninit::<[T; N]>::uninit().transpose(),
                 curr: 0,
             }
         }
     }
 
-    impl<T: Copy + Unpin, const N: usize> Arena<T, N> {
+    impl<T: Unpin, const N: usize> Arena<T, N> {
         fn insert(&mut self, val: T) -> Result<&T, SysErr> {
             if self.curr >= N {
                 Err(SysErr::OutOfMemory)
@@ -119,7 +119,11 @@ pub mod arena {
 }
 
 pub mod list {
-    use core::{marker::PhantomPinned, mem::MaybeUninit, ops::{Deref, DerefMut}};
+    use core::{
+        marker::PhantomPinned,
+        mem::MaybeUninit,
+        ops::{Deref, DerefMut}
+    };
 
     use crate::{static_alloc::init::InitLater, syscall::SysErr};
 
@@ -158,10 +162,8 @@ pub mod list {
 
     impl<T, const N: usize> const Default for FreeList<T, N> {
         fn default() -> Self {
-            let data: MaybeUninit<[ListLink<T>; N]> = MaybeUninit::uninit();
-            let data = data.transpose();
             Self {
-                data,
+                data: MaybeUninit::<[ListLink<T>; N]>::uninit().transpose(),
                 list: None,
             }
         }
@@ -171,6 +173,9 @@ pub mod list {
         pub fn alloc(&mut self, val: T) -> Result<&mut ListLink<T>, SysErr> {
             let next = self.list.ok_or(SysErr::OutOfMemory)?;
             self.list = unsafe{ next.read() }.next;
+            unsafe {
+                next.as_mut_unchecked().data.write(val);
+            }
             Ok(unsafe{ next.as_mut_unchecked() })
         }
 

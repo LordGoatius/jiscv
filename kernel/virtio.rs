@@ -42,9 +42,7 @@ impl Register<ReadWrite> {
     }
 
     pub fn or(&mut self, val: u32) {
-        unsafe {
-            (self as *mut Self).write_volatile(Self(self.read() | val, PhantomData));
-        }
+        self.write(self.read() | val);
     }
 }
 

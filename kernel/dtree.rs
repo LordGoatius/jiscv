@@ -1,4 +1,7 @@
-use core::{fmt::{Debug, Display}, slice};
+use core::{
+    fmt::{Debug, Display},
+    slice,
+};
 
 use ralloc::vec::Vec;
 
@@ -75,9 +78,7 @@ impl Debug for DeviceTreeProperty {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("DeviceTreeProperty")
             .field("name", &self.name)
-            .field_with("value", |f| {
-                write!(f, "{:?}", self.value)
-            })
+            .field_with("value", |f| write!(f, "{:?}", self.value))
             .finish()
     }
 }
@@ -300,7 +301,7 @@ impl DeviceTreeParser {
             while strings[iter] != 0x00 {
                 iter += 1;
             }
-            
+
             unsafe { str::from_utf8_unchecked(&strings[name_off..iter]) }
         };
 
@@ -316,42 +317,79 @@ impl DeviceTreeParser {
 }
 
 impl DeviceTreeNode {
-   fn print(&self, indent: usize) {
-       for _ in 1..indent {
-           print!("\t");
-       }
-       println!("{}: ", self.name);
-       self.properties.iter()
-           .for_each(|node: &DeviceTreeProperty| {
-               for _ in 0..indent {
-                   print!("\t");
-               }
-               println!("{}", node.name);
-           });
-       self.child_node.iter().for_each(|node| node.print(indent + 1));
-   }
+    // using just a str for a path rn
+    fn search(&self, path: &str) -> Option<&DeviceTreeNode> {
+        let (curr, next) = {
+            let split = path.split_once('/');
+            if split.is_none() {
+                for node in self.child_node.iter() {
+                    if node.name.eq(path) {
+                        return Some(&node);
+                    }
+                }
+                return None;
+            } else {
+                split.unwrap()
+            }
+        };
+
+        for node in self.child_node.iter() {
+            if node.name.eq(curr) {
+                return node.search(next);
+            }
+        }
+
+        None
+    }
+
+    pub fn print(&self, indent: usize) {
+        for _ in 1..indent {
+            print!("    ");
+        }
+        println!("{} {{", self.name);
+        self.properties
+            .iter()
+            .for_each(|node: &DeviceTreeProperty| {
+                for _ in 0..indent {
+                    print!("    ");
+                }
+                println!("{}", node.name);
+            });
+        self.child_node
+            .iter()
+            .for_each(|node| node.print(indent + 1));
+        for _ in 1..indent {
+            print!("    ");
+        }
+        println!("}};");
+    }
 }
 
 impl DeviceTree {
-   pub fn print_properties(&self) {
-       self.node_list_root.print(0);
-   }
+    pub fn search(&self, path: &str) -> Option<&DeviceTreeNode> {
+        self.node_list_root.search(&path[1..])
+    }
+    
+    pub fn print_properties(&self) {
+        self.node_list_root.print(1);
+    }
 }
 
 #[rustfmt::skip]
 impl Display for DeviceTreeHeader {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        writeln!(f, "DeviceTreeHeader {{")?;
-        writeln!(f, "    magic:             0x{:08x}", u32::from_be(self.magic))?;
-        writeln!(f, "    totalsize:         0x{:08x}", u32::from_be(self.totalsize))?;
-        writeln!(f, "    off_dt_struct:     0x{:08x}", u32::from_be(self.off_dt_struct))?;
-        writeln!(f, "    off_dt_strings:    0x{:08x}", u32::from_be(self.off_dt_strings))?;
-        writeln!(f, "    off_mem_resvmap:   0x{:08x}", u32::from_be(self.off_mem_resvmap))?;
-        writeln!(f, "    version:           0x{:08x}", u32::from_be(self.version))?;
-        writeln!(f, "    last_comp_version: 0x{:08x}", u32::from_be(self.last_comp_version))?;
-        writeln!(f, "    boot_cpuid_phys:   0x{:08x}", u32::from_be(self.boot_cpuid_phys))?;
-        writeln!(f, "    size_dt_strings:   0x{:08x}", u32::from_be(self.size_dt_strings))?;
-        writeln!(f, "    size_dt_struct:    0x{:08x}", u32::from_be(self.size_dt_struct))?;
+        let le = if f.alternate() { "\n" } else { "" };
+        write!(f, "DeviceTreeHeader {{{}", le)?;
+        write!(f, "    magic:             0x{:08x},{}", u32::from_be(self.magic), le)?;
+        write!(f, "    totalsize:         0x{:08x},{}", u32::from_be(self.totalsize), le)?;
+        write!(f, "    off_dt_struct:     0x{:08x},{}", u32::from_be(self.off_dt_struct), le)?;
+        write!(f, "    off_dt_strings:    0x{:08x},{}", u32::from_be(self.off_dt_strings), le)?;
+        write!(f, "    off_mem_resvmap:   0x{:08x},{}", u32::from_be(self.off_mem_resvmap), le)?;
+        write!(f, "    version:           0x{:08x},{}", u32::from_be(self.version), le)?;
+        write!(f, "    last_comp_version: 0x{:08x},{}", u32::from_be(self.last_comp_version), le)?;
+        write!(f, "    boot_cpuid_phys:   0x{:08x},{}", u32::from_be(self.boot_cpuid_phys), le)?;
+        write!(f, "    size_dt_strings:   0x{:08x},{}", u32::from_be(self.size_dt_strings), le)?;
+        write!(f, "    size_dt_struct:    0x{:08x},{}", u32::from_be(self.size_dt_struct), le)?;
         write!(f, "}}")
     }
 }
@@ -363,26 +401,26 @@ pub enum PropertyValues {
     String,
     PropEncArr,
     PHandle,
-    StrList
+    StrList,
 }
 
 pub struct StdProperty {
     name: &'static str,
-    value: PropertyValues
+    value: PropertyValues,
 }
 
 macro_rules! define_prop {
     ($name:literal, $ty:ident) => {
         StdProperty {
             name: $name,
-            value: PropertyValues::$ty
+            value: PropertyValues::$ty,
         }
     };
 }
 
 macro_rules! def_prop_list {
     (($(($($args:tt)*)),* $(,)?)) => {
-        static STANDARD_PROPERTIES: [StdProperty; 12] = [$(
+        static STANDARD_PROPERTIES: [StdProperty; 18] = [$(
             define_prop!($($args)*),
         )*];
     };
@@ -401,4 +439,110 @@ def_prop_list!((
     ("dma-ranges", PropEncArr),
     ("name", String),
     ("device_type", String),
+    ("interrupts", PropEncArr),
+    ("interrupt-parent", PHandle),
+    // ("interrupts-extended", )
+    ("#interrupt-cells", U32),
+    ("interrupt-controller", Empty),
+    ("interrupt-map",PropEncArr),
+    ("interrupt-map-mask", PropEncArr),
 ));
+
+static GENERIC_NAMES: [&str; 96] = [
+    "adc",
+    "accelerometer",
+    "atm",
+    "audio-codec",
+    "audio-controller",
+    "backlight",
+    "bluetooth",
+    "bus",
+    "cache-controller",
+    "camera",
+    "can",
+    "charger",
+    "clock",
+    "clock-controller",
+    "compact-flash",
+    "cpu",
+    "cpus",
+    "crypto",
+    "disk",
+    "display",
+    "dma-controller",
+    "dsi",
+    "dsp",
+    "eeprom",
+    "efuse",
+    "endpoint",
+    "ethernet",
+    "ethernet-phy",
+    "fdc",
+    "flash",
+    "gnss",
+    "gpio",
+    "gpu",
+    "gyrometer",
+    "hdmi",
+    "hwlock",
+    "i2c",
+    "i2c-mux",
+    "ide",
+    "interrupt-controller",
+    "iommu",
+    "isa",
+    "keyboard",
+    "key",
+    "keys",
+    "lcd-controller",
+    "led",
+    "leds",
+    "led-controller",
+    "light-sensor",
+    "magnetometer",
+    "mailbox",
+    "mdio",
+    "memory",
+    "memory-controller",
+    "mmc",
+    "mmc-slot",
+    "mouse",
+    "nand-controller",
+    "nvram",
+    "oscillator",
+    "parallel",
+    "pc-card",
+    "pci",
+    "pcie",
+    "phy",
+    "pinctrl",
+    "pmic",
+    "pmu",
+    "port",
+    "ports",
+    "power-monitor",
+    "pwm",
+    "regulator",
+    "reset-controller",
+    "rng",
+    "rtc",
+    "sata",
+    "scsi",
+    "serial",
+    "sound",
+    "spi",
+    "sram-controller",
+    "ssi-controller",
+    "syscon",
+    "temperature-sensor",
+    "timer",
+    "touchscreen",
+    "tpm",
+    "usb",
+    "usb-hub",
+    "usb-phy",
+    "video-codec",
+    "vme",
+    "watchdog",
+    "wifi",
+];
