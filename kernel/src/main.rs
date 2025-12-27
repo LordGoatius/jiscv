@@ -118,6 +118,7 @@ fn main() -> ! {
     GLOBAL_ALLOC.init(&raw mut __heap, &raw mut __heap_end);
 
     let dtree = dtree::parse(devicetree);
+    dtree.print_properties();
     // println!("{dtree:#?}");
 
     virtio::init_virtio();

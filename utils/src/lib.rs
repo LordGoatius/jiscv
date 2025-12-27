@@ -1,5 +1,13 @@
 #![no_std]
-#![feature(try_trait_v2, try_trait_v2_residual)]
+#![feature(
+    const_array,
+    const_trait_impl,
+    maybe_uninit_array_assume_init,
+    try_trait_v2,
+    try_trait_v2_residual
+)]
+
+pub mod static_alloc;
 
 pub mod syscall {
     use core::ops::{ControlFlow, FromResidual, Try};
@@ -31,6 +39,7 @@ pub mod syscall {
     pub enum SysErr {
         NotFound = -1,
         BufferSize = -2,
+        OutOfMemory = -3
     }
 
     impl Try for SyscallResult {

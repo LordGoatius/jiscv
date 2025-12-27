@@ -53,6 +53,8 @@ pub struct DeviceTreeHeader {
 #[derive(Debug, Clone)]
 pub struct DeviceTree {
     node_list_root: DeviceTreeNode,
+    // Sighs... I get why they use linked lists now.
+    // I've been defeated. I'll change this to a linked list at some point.
     resvd_mem: Vec<MemResBlock>,
 }
 
@@ -311,6 +313,29 @@ impl DeviceTreeParser {
 
         DeviceTreeProperty { name, value }
     }
+}
+
+impl DeviceTreeNode {
+   fn print(&self, indent: usize) {
+       for _ in 1..indent {
+           print!("\t");
+       }
+       println!("{}: ", self.name);
+       self.properties.iter()
+           .for_each(|node: &DeviceTreeProperty| {
+               for _ in 0..indent {
+                   print!("\t");
+               }
+               println!("{}", node.name);
+           });
+       self.child_node.iter().for_each(|node| node.print(indent + 1));
+   }
+}
+
+impl DeviceTree {
+   pub fn print_properties(&self) {
+       self.node_list_root.print(0);
+   }
 }
 
 #[rustfmt::skip]
