@@ -3,7 +3,9 @@
     const_array,
     const_default,
     const_trait_impl,
+    custom_inner_attributes,
     generic_atomic,
+    generic_const_exprs,
     maybe_uninit_array_assume_init,
     maybe_uninit_uninit_array_transpose,
     ptr_as_ref_unchecked,
@@ -13,6 +15,7 @@
 #![no_std]
 
 pub mod static_alloc;
+pub mod btree;
 
 pub mod syscall {
     use core::ops::{ControlFlow, FromResidual, Try};
