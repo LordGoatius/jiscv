@@ -1,4 +1,4 @@
-use core::alloc::{GlobalAlloc, Layout};
+use core::{alloc::{GlobalAlloc, Layout}, ptr::NonNull};
 
 // Do a linked list allocator next
 
@@ -8,6 +8,16 @@ use crate::paging::PageTable;
 
 #[global_allocator]
 pub static GLOBAL_ALLOC: BumpAlloc = BumpAlloc::new();
+
+pub struct LinkedListAlloc {
+    head: Mutex<ListLink>
+}
+
+#[repr(C)]
+struct ListLink {
+    size: usize,
+    next: Option<NonNull<ListLink>>
+}
 
 struct RawBump {
     next: usize,

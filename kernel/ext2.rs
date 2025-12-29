@@ -2,15 +2,38 @@
 
 use core::fmt::Debug;
 
+use crate::virtio::{SECTOR_SIZE, read_disk, write_disk};
+
+const ROOT_INODE: u32 = 2;
+
+pub fn init() {
+    let mut buf = [0u8; 1024];
+    // Superblock
+    read_disk(&mut buf[0..512], 2);
+    read_disk(&mut buf[512..], 3);
+
+    let superblock: &Superblock = unsafe { &core::mem::transmute(buf) };
+    let fs: Ext2 = superblock.get_ext2();
+    println!("{fs:#x?}");
+    println!("{fs:#?}");
+
+    let mut buf2 = [0u8; 4096];
+    fs.read_block(&mut buf2, 1);
+    let bgdesc: &[BlockGroupDescriptorTable; 4096 / size_of::<BlockGroupDescriptorTable>()] = unsafe { &core::mem::transmute(buf2) };
+    println!("{:#?}", bgdesc);
+}
+
 #[derive(Debug)]
 pub struct Ext2 {
-    blck_size: u32,
-    frag_size: u32,
-    inode_total: u32,
-    block_total: u32,
-    inode_per_bg: u32,
-    blk_per_bg: u32,
-    block_group_total: u32,
+    pub blck_size: u32,
+    pub frag_size: u32,
+    pub inode_total: u32,
+    pub block_total: u32,
+    pub inode_per_bg: u32,
+    pub blk_per_bg: u32,
+    pub block_group_total: u32,
+    pub inode_size: u16,
+    pub sec_per_blk: usize,
 }
 
 #[repr(C, packed(4))]
@@ -68,13 +91,40 @@ impl Superblock {
             "Make sure Ext2 FS is consistent"
         );
         Ext2 {
-            blck_size: 1024 >> self.blck_size_shift,
-            frag_size: 1024 >> self.frag_size_shift,
+            blck_size: 1024 << self.blck_size_shift,
+            frag_size: 1024 << self.frag_size_shift,
             inode_total: self.inode_num,
             block_total: self.block_num,
             inode_per_bg: self.inodes_per_block_group,
             blk_per_bg: self.blocks_per_block_group,
-            block_group_total: self.block_num / self.blocks_per_block_group
+            block_group_total: self.block_num / self.blocks_per_block_group,
+            inode_size: self.inode_size,
+            sec_per_blk: (1024 << self.blck_size_shift) / SECTOR_SIZE
+        }
+    }
+}
+
+
+impl Ext2 {
+    // Min block size is 1024
+    pub fn read_block(&self, buf: &mut [u8], block: usize) {
+        assert_eq!(self.blck_size as usize, buf.len());
+
+        let mut sec_buf = [0u8; SECTOR_SIZE];
+
+        for i in 0..self.sec_per_blk {
+            let beg_sec = self.sec_per_blk * block;
+            read_disk(&mut sec_buf, beg_sec + i);
+            buf[(i * SECTOR_SIZE)..((i + 1) * SECTOR_SIZE)].copy_from_slice(&sec_buf);
+        }
+    }
+
+    pub fn write_block(&self, buf: &[u8], block: usize) {
+        assert_eq!(self.blck_size as usize, buf.len());
+
+        for i in 0..self.sec_per_blk {
+            let beg_sec = self.sec_per_blk * block;
+            write_disk(&buf[(i * SECTOR_SIZE)..((i + 1) * SECTOR_SIZE)], beg_sec + i);
         }
     }
 }
@@ -94,6 +144,19 @@ struct BlockGroupDescriptorTable {
     /// Number of directories in group
     num_dirs: u16,
     _0: [u8; 13] 
+}
+
+impl Debug for BlockGroupDescriptorTable {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("BlockGroupDescriptorTable")
+            .field("block_usage_bitmap_addr", &self.block_usage_bitmap_addr)
+            .field("inode_usage_bitmap_addr", &self.inode_usage_bitmap_addr)
+            .field("block_addr_inode_table", &self.block_addr_inode_table)
+            .field("unallocated_blocks", &self.unallocated_blocks)
+            .field("unallocated_inodes", &self.unallocated_inodes)
+            .field("num_dirs", &self.num_dirs)
+            .finish()
+    }
 }
 
 #[repr(C)]

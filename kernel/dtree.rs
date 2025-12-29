@@ -33,7 +33,7 @@ impl FDT_TOKEN {
 }
 
 pub fn parse(header: *const DeviceTreeHeader) -> DeviceTree {
-    assert_eq!(unsafe { *header }.magic, 0xd00dfeed_u32.to_be());
+    assert_eq!(unsafe { header.read_volatile() }.magic, 0xd00dfeed_u32.to_be());
     let parser = DeviceTreeParser::from(header);
     parser.parse()
 }

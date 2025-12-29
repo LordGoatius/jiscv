@@ -19,7 +19,7 @@ qemu-system-riscv64 \
     -cpu rv64 \
     -bios default \
     -smp 4 \
-    -m 128M \
+    -m 256M \
     -nographic \
     -d cpu_reset,unimp,guest_errors,int -D qemu.log \
     -serial mon:stdio \

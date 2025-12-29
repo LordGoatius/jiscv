@@ -123,6 +123,7 @@ pub fn create_process(image: *mut u8, size: usize) -> Result<*mut Process, Proce
                 );
                 addr = addr.add(PAGE_SIZE);
             }
+
             (*page_table).map_page(VAddr(VIRTIO_BLK_PADDR as *mut ()), PAddr(VIRTIO_BLK_PADDR as *mut ()), PAGE_R | PAGE_W);
 
             for offset in (0..size).step_by(PAGE_SIZE) {
