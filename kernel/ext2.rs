@@ -1,10 +1,15 @@
 #![rustfmt::skip]
 
-use core::fmt::Debug;
+use core::{alloc::Layout, fmt::{Binary, Debug}, slice};
+
+use ralloc::alloc;
+use spin::once::Once;
 
 use crate::virtio::{SECTOR_SIZE, read_disk, write_disk};
 
 const ROOT_INODE: u32 = 2;
+
+pub static mut BLOCK_SZ_BUF: Once<&mut [u8]> = Once::new();
 
 pub fn init() {
     let mut buf = [0u8; 1024];
@@ -14,13 +19,26 @@ pub fn init() {
 
     let superblock: &Superblock = unsafe { &core::mem::transmute(buf) };
     let fs: Ext2 = superblock.get_ext2();
-    println!("{fs:#x?}");
+
+    unsafe {
+        BLOCK_SZ_BUF.call_once(|| {
+            let size = fs.blck_size as usize;
+            let ptr = alloc::alloc(Layout::from_size_align_unchecked(size, size));
+            slice::from_raw_parts_mut(ptr, size)
+        })
+    };
+
     println!("{fs:#?}");
 
-    let mut buf2 = [0u8; 4096];
-    fs.read_block(&mut buf2, 1);
-    let bgdesc: &[BlockGroupDescriptorTable; 4096 / size_of::<BlockGroupDescriptorTable>()] = unsafe { &core::mem::transmute(buf2) };
-    println!("{:#?}", bgdesc);
+    fs.read_block(unsafe { BLOCK_SZ_BUF.get_mut_unchecked() }, 1);
+
+    let bgdesc: &[BlockGroupDescriptor] = unsafe {
+        let ptr = BLOCK_SZ_BUF.get_unchecked().as_ptr().cast::<BlockGroupDescriptor>();
+        slice::from_raw_parts(ptr, fs.blck_size as usize / size_of::<BlockGroupDescriptor>())
+    };
+    println!("{:#?}", &bgdesc[0..8]);
+
+    let root_inode = fs.read_root_inode();
 }
 
 #[derive(Debug)]
@@ -127,14 +145,58 @@ impl Ext2 {
             write_disk(&buf[(i * SECTOR_SIZE)..((i + 1) * SECTOR_SIZE)], beg_sec + i);
         }
     }
+
+    fn read_root_inode(&self) -> Inode {
+        let block_group = 1 / self.inode_per_bg;
+        
+        let bgdesc: &[BlockGroupDescriptor] = unsafe {
+            let ptr = BLOCK_SZ_BUF.get_unchecked().as_ptr().cast::<BlockGroupDescriptor>();
+            slice::from_raw_parts(ptr, self.blck_size as usize / size_of::<BlockGroupDescriptor>())
+        };
+
+        let bg = bgdesc[block_group as usize];
+        println!("{block_group}: {bg:#?}");
+
+        // INODE ADDRESSES START AT 1
+        // Root Inode always 2
+        let index = 1; // (inode - 1) % inodes_per_bg
+
+        let containing_block = ((index as u32 * dbg!(self.inode_size) as u32) / dbg!(self.blck_size)) + 1;
+
+        self.read_block(unsafe { BLOCK_SZ_BUF.get_mut_unchecked() }, bg.block_addr_inode_table as usize);
+
+        // Inode index is 1, so 
+        let inode = unsafe {
+            let block_table = BLOCK_SZ_BUF.get_mut_unchecked().as_ptr().add(index * self.inode_size as usize).cast::<Inode>();
+            block_table.read()
+        };
+
+        println!("{inode:#?}");
+        inode
+    }
+
+    fn read_inode(&self, inode: usize) -> Inode {
+        todo!()
+    }
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy)]
+struct Bitmap<T: Binary>(T);
+
+impl<T: Binary> Debug for Bitmap<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "0b{:b}", &self.0)
+    }
 }
 
 #[repr(C)]
-struct BlockGroupDescriptorTable {
+#[derive(Clone, Copy)]
+struct BlockGroupDescriptor {
     /// Block address of block usage bitmap
-    block_usage_bitmap_addr: u32,
+    block_usage_bitmap_addr: Bitmap<u32>,
     /// Block address of inode usage bitmap
-    inode_usage_bitmap_addr: u32,
+    inode_usage_bitmap_addr: Bitmap<u32>,
     /// Starting block address of inode table
     block_addr_inode_table: u32,
     /// Number of unallocated blocks in group
@@ -146,7 +208,7 @@ struct BlockGroupDescriptorTable {
     _0: [u8; 13] 
 }
 
-impl Debug for BlockGroupDescriptorTable {
+impl Debug for BlockGroupDescriptor {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("BlockGroupDescriptorTable")
             .field("block_usage_bitmap_addr", &self.block_usage_bitmap_addr)
@@ -160,6 +222,7 @@ impl Debug for BlockGroupDescriptorTable {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 struct Inode {
     ty_perm: u16,                 // Type and Permissions (see below)
     user_id: u16,                 // User ID

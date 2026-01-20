@@ -16,6 +16,7 @@
 
 pub mod static_alloc;
 pub mod btree;
+pub mod rbtree;
 
 pub mod syscall {
     use core::ops::{ControlFlow, FromResidual, Try};
