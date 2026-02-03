@@ -5,6 +5,8 @@ edition = "2024"
 
 [lib]
 path = "lib.rs"
+test = false
+bench = false
 
 [dependencies]
 spin = { workspace = true }

@@ -1,4 +1,4 @@
-use crate::{trap::SCAUSE_INT, write_csr};
+use crate::{println, sbi::sbi_set_timer, trap::SCAUSE_INT, write_csr};
 
 #[macro_use]
 pub mod macros {
@@ -81,7 +81,7 @@ pub fn handle_interrupt(scause: usize, sepc: usize, stval: usize) {
     match scause {
         0x8000000000000005 => {
             let mtime = read_time!();
-            write_csr!("stimecmp", mtime + 0xffffff);
+            sbi_set_timer(mtime as u64 + 0xffffff);
         }
         _ => (),
     }

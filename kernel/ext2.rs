@@ -161,10 +161,11 @@ impl Ext2 {
         // Root Inode always 2
         let index = 1; // (inode - 1) % inodes_per_bg
 
-        let containing_block = ((index as u32 * dbg!(self.inode_size) as u32) / dbg!(self.blck_size)) + 1;
-
         self.read_block(unsafe { BLOCK_SZ_BUF.get_mut_unchecked() }, bg.block_addr_inode_table as usize);
 
+        // Some work may need to be done to ensure that since the block table *starting address* is what we get, that we
+        // index into the proper block to get our inode. I think just div and mod to address
+        let containing_block = ((index as u32 * dbg!(self.inode_size) as u32) / dbg!(self.blck_size)) + 1;
         // Inode index is 1, so 
         let inode = unsafe {
             let block_table = BLOCK_SZ_BUF.get_mut_unchecked().as_ptr().add(index * self.inode_size as usize).cast::<Inode>();
