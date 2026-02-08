@@ -110,13 +110,19 @@ fn main() -> ! {
         asm!("csrw stvec, {}", in(reg) trap::trap_entry as *const u8);
     }
 
+    // for i in "hello".bytes() {
+    //     unsafe {
+    //         (0x1000_0000 as *mut u8).write_volatile(i);
+    //     }
+    // }
+
     println!("Booting JimOS");
     println!("Starting Hart: {hart_start}");
 
     GLOBAL_ALLOC.init(&raw mut __heap, &raw mut __heap_end);
 
     let dtree = dtree::parse(devicetree);
-    dtree.print_properties();
+    // dtree.print_properties();
 
     virtio::init_virtio();
 

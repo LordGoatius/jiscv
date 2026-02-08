@@ -1,8 +1,8 @@
 #![rustfmt::skip]
 
-use core::{alloc::Layout, fmt::{Binary, Debug}, slice};
+use core::{alloc::Layout, fmt::{Binary, Debug}, mem::offset_of, slice};
 
-use ralloc::alloc;
+use ralloc::{alloc, vec::Vec};
 use spin::once::Once;
 
 use crate::virtio::{SECTOR_SIZE, read_disk, write_disk};
@@ -36,9 +36,15 @@ pub fn init() {
         let ptr = BLOCK_SZ_BUF.get_unchecked().as_ptr().cast::<BlockGroupDescriptor>();
         slice::from_raw_parts(ptr, fs.blck_size as usize / size_of::<BlockGroupDescriptor>())
     };
-    println!("{:#?}", &bgdesc[0..8]);
 
-    let root_inode = fs.read_root_inode();
+    let root_inode = fs.read_inode(ROOT_INODE);
+    let block_0 = root_inode.direct_block_ptr_0;
+    fs.read_block(unsafe { BLOCK_SZ_BUF.get_mut_unchecked() }, block_0 as usize);
+    unsafe {
+        let block = BLOCK_SZ_BUF.get_unchecked();
+        let ents = fs.parse_dir_entries(block);
+        println!("{:#?}", ents);
+    }
 }
 
 #[derive(Debug)]
@@ -52,6 +58,9 @@ pub struct Ext2 {
     pub block_group_total: u32,
     pub inode_size: u16,
     pub sec_per_blk: usize,
+    pub opt_feat: Bitmap<u32>,
+    pub req_feat: Bitmap<u32>,
+    pub read_only_feat: Bitmap<u32>,
 }
 
 #[repr(C, packed(4))]
@@ -117,7 +126,10 @@ impl Superblock {
             blk_per_bg: self.blocks_per_block_group,
             block_group_total: self.block_num / self.blocks_per_block_group,
             inode_size: self.inode_size,
-            sec_per_blk: (1024 << self.blck_size_shift) / SECTOR_SIZE
+            sec_per_blk: (1024 << self.blck_size_shift) / SECTOR_SIZE,
+            opt_feat: Bitmap(self.opt_feat),
+            req_feat: Bitmap(self.req_feat),
+            read_only_feat: Bitmap(self.read_only_feat),
         }
     }
 }
@@ -146,8 +158,30 @@ impl Ext2 {
         }
     }
 
-    fn read_root_inode(&self) -> Inode {
-        let block_group = 1 / self.inode_per_bg;
+    fn parse_dir_entries<'a>(&self, buf: &'a [u8]) -> Vec<ParsedDirEntry<'a>> {
+        let mut curr = 0;
+        let mut curr_dir_ent = unsafe { buf.as_ptr().cast::<DirEntry>().read() };
+        let mut vec = Vec::with_capacity(12);
+        while curr_dir_ent.inode != 0 {
+            let DirEntry { inode, size, name_len_lsb: name_len, name_len_msb_or_ty_ind: dir_ty, name_first_byte: _ } = curr_dir_ent;
+            curr += offset_of!(DirEntry, name_first_byte);
+            // # Safety:
+            let name_start = unsafe { buf.as_ptr().add(curr) };
+            let name = unsafe { slice::from_raw_parts(name_start, name_len as usize) };
+            vec.push(ParsedDirEntry { inode, size, dir_ty, name });
+            curr += name_len as usize - 1;
+            // # Safety: We manually align the pointer before the cast
+            unsafe {
+                curr += 4 - (curr % 4);
+                let ptr = buf.as_ptr().add(curr).cast::<DirEntry>();
+                curr_dir_ent = ptr.read();
+            }
+        }
+        vec
+    }
+
+    fn read_inode(&self, inode: u32) -> Inode {
+        let block_group = (inode - 1) / self.inode_per_bg;
         
         let bgdesc: &[BlockGroupDescriptor] = unsafe {
             let ptr = BLOCK_SZ_BUF.get_unchecked().as_ptr().cast::<BlockGroupDescriptor>();
@@ -159,25 +193,21 @@ impl Ext2 {
 
         // INODE ADDRESSES START AT 1
         // Root Inode always 2
-        let index = 1; // (inode - 1) % inodes_per_bg
+        let index = (inode - 1) % self.inode_per_bg;
 
         self.read_block(unsafe { BLOCK_SZ_BUF.get_mut_unchecked() }, bg.block_addr_inode_table as usize);
 
         // Some work may need to be done to ensure that since the block table *starting address* is what we get, that we
         // index into the proper block to get our inode. I think just div and mod to address
-        let containing_block = ((index as u32 * dbg!(self.inode_size) as u32) / dbg!(self.blck_size)) + 1;
-        // Inode index is 1, so 
+        // Since the containing block number isn't used in accessing the data, we ignore this
+        let containing_block = ((index as u32 * self.inode_size as u32) / self.blck_size) + 1;
+
         let inode = unsafe {
-            let block_table = BLOCK_SZ_BUF.get_mut_unchecked().as_ptr().add(index * self.inode_size as usize).cast::<Inode>();
+            let block_table = BLOCK_SZ_BUF.get_mut_unchecked().as_ptr().add(index as usize * self.inode_size as usize).cast::<Inode>();
             block_table.read()
         };
 
-        println!("{inode:#?}");
         inode
-    }
-
-    fn read_inode(&self, inode: usize) -> Inode {
-        todo!()
     }
 }
 
@@ -261,12 +291,39 @@ struct Inode {
 
 /// The name IMMEDIATELY FOLLOWS this struct
 #[repr(C)]
+#[derive(Debug)]
 struct DirEntry {
     inode: u32,
     size: u16,
     name_len_lsb: u8,
     name_len_msb_or_ty_ind: u8,
+    /// A pointer to this is a pointer to the first byte of the name of the file
     name_first_byte: u8,
+}
+
+struct ParsedDirEntry<'a> {
+    inode: u32,
+    size: u16,
+    dir_ty: u8,
+    name: &'a [u8]
+}
+
+impl<'a> Debug for ParsedDirEntry<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ParsedDirEntry")
+            .field("inode", &self.inode)
+            .field("size", &self.size)
+            .field_with("dir_ty", |f| {
+                write!(f, "{:?}", unsafe {
+                    core::mem::transmute::<u8, DirEntryType::DirEntryType>(self.dir_ty)
+                })
+            })
+            .field_with("name", |f| {
+                // Let's potentially do an undefined behavior!?! YAY
+                write!(f, "{:?}", unsafe { self.name.as_ascii_unchecked().as_str() })
+            })
+            .finish()
+    }
 }
 
 #[allow(non_snake_case)]
@@ -279,7 +336,22 @@ pub const BLK_DEV:   u8 = 4;
 pub const PIPE:      u8 = 5;
 pub const SOCKET:    u8 = 6;
 pub const SYM_LINK:  u8 = 7;
+
+#[repr(u8)]
+#[derive(Debug)]
+pub enum DirEntryType {
+    Unknown = 0,
+    File = 1,
+    Dir = 2,
+    CharDev = 3,
+    BlkDev = 4,
+    Pipe = 5,
+    Socket = 6,
+    Symlink = 7,
 }
+}
+
+
 
 #[allow(non_snake_case)]
 mod InodeTyPerms {

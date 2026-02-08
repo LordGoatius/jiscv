@@ -10,9 +10,9 @@ llvm-objcopy -Ibinary -Oelf64-littleriscv .shell.bin .shell.bin.o
 ./flags.py
 
 RUSTFLAGS="-C link-arg=.shell.bin.o" \
-    cargo build --bin kernel --target riscv64gc-unknown-none-elf
+    cargo build --bin kernel --target riscv64gc-unknown-none-elf --release
 
-cp target/riscv64gc-unknown-none-elf/debug/kernel kernel.elf
+cp target/riscv64gc-unknown-none-elf/release/kernel kernel.elf
 
 qemu-system-riscv64 \
     -machine virt \
