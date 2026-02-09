@@ -32,10 +32,12 @@ mod sbi;
 mod print;
 #[macro_use]
 mod trap;
+mod uart;
 mod virtio;
 mod tar;
 mod ext2;
 mod syscall;
+pub mod traits;
 
 mod dtree;
 mod user;
@@ -47,9 +49,10 @@ use ralloc::vec::Vec;
 use spin::lazy::Lazy;
 
 use crate::alloc::GLOBAL_ALLOC;
-use crate::dtree::DeviceTreeHeader;
+use crate::dtree::{DeviceTreeHeader, DeviceTreeNode};
 use crate::proc::{create_process, r#yield, Process};
 use crate::tar::File;
+use crate::uart::{UartInitError, init_uart};
 use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
 
 unsafe extern "C" {
@@ -110,12 +113,6 @@ fn main() -> ! {
         asm!("csrw stvec, {}", in(reg) trap::trap_entry as *const u8);
     }
 
-    // for i in "hello".bytes() {
-    //     unsafe {
-    //         (0x1000_0000 as *mut u8).write_volatile(i);
-    //     }
-    // }
-
     println!("Booting JimOS");
     println!("Starting Hart: {hart_start}");
 
@@ -123,6 +120,14 @@ fn main() -> ! {
 
     let dtree = dtree::parse(devicetree);
     // dtree.print_properties();
+    let node = dtree.search("/soc/serial");
+    let addr = node.and_then(DeviceTreeNode::get_addr);
+    let addr = addr.and_then(
+        |src| usize::from_str_radix(src, 16).ok().map(|num| num as *mut u8)
+    );
+    let addr = addr
+        .ok_or_else(|| UartInitError)
+        .and_then(|addr| init_uart(addr));
 
     virtio::init_virtio();
 

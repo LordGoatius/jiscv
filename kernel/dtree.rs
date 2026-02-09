@@ -317,13 +317,21 @@ impl DeviceTreeParser {
 }
 
 impl DeviceTreeNode {
+    fn find_prop(&self, name: &str) -> Option<&DeviceTreeNode> {
+        todo!()
+    }
+
+    pub fn get_addr(&self) -> Option<&str> {
+        self.name.split_once('@').map(|(_, str)| str)
+    }
+
     // using just a str for a path rn
-    fn search(&self, path: &str) -> Option<&DeviceTreeNode> {
+    pub fn search(&self, path: &str) -> Option<&DeviceTreeNode> {
         let (curr, next) = {
             let split = path.split_once('/');
             if split.is_none() {
                 for node in self.child_node.iter() {
-                    if node.name.eq(path) {
+                    if node.name.contains(path) {
                         return Some(&node);
                     }
                 }

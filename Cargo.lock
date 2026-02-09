@@ -6,6 +6,7 @@ version = 4
 name = "kernel"
 version = "0.1.0"
 dependencies = [
+ "owo-colors",
  "spin",
  "utils",
 ]
@@ -18,6 +19,12 @@ checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
 dependencies = [
  "scopeguard",
 ]
+
+[[package]]
+name = "owo-colors"
+version = "4.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c6901729fa79e91a0913333229e9ca5dc725089d1c363b2f4b4760709dc4a52"
 
 [[package]]
 name = "scopeguard"

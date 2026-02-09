@@ -12,6 +12,7 @@ bench = false
 [dependencies]
 spin = { workspace = true }
 utils = { path = "../utils" }
+owo-colors = { features = ["alloc"], version = "4.2.3" }
 
 [profile.dev]
 opt-level = 3

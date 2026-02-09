@@ -11,5 +11,6 @@ members = [
 # Believe it or not, I'd rather not have this dependency, and learn how to write
 # these kinds of primitives myself.
 spin = "0.10.0"
+owo-colors = { features = ["alloc"], version = "4.2.3" }
 
 [profile.dev]
