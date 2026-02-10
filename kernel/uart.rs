@@ -3,7 +3,24 @@ use core::ptr::NonNull;
 use owo_colors::{OwoColorize, colors::*};
 use spin::{Mutex, MutexGuard, Once};
 
-use crate::ksay::KSay;
+use crate::traits::KSay;
+
+// From Wikibooks
+// (https://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming#UART_Registers):
+// |Base Addr | DLAB    | I/O Access | Abbrv.  | Register Name                    |
+// |----------|---------|------------|---------|----------------------------------|
+// |+0        | 0       | Write      | THR     | Transmitter Holding Buffer       |
+// |+0        | 0       | Read       | RBR     | Receiver Buffer                  |
+// |+0        | 1       | Read/Write | DLL     | Divisor Latch Low Byte           |
+// |+1        | 0       | Read/Write | IER     | Interrupt Enable Register        |
+// |+1        | 1       | Read/Write | DLH     | Divisor Latch High Byte          |
+// |+2        | x       | Read       | IIR     | Interrupt Identification Register|
+// |+2        | x       | Write      | FCR     | FIFO Control Register            |
+// |+3        | x       | Read/Write | LCR     | Line Control Register            |
+// |+4        | x       | Read/Write | MCR     | Modem Control Register           |
+// |+5        | x       | Read       | LSR     | Line Status Register             |
+// |+6        | x       | Read       | MSR     | Modem Status Register            |
+// |+7        | x       | Read/Write | SR      | Scratch Register                 |
 
 struct Uart(NonNull<u8>);
 

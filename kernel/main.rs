@@ -37,6 +37,7 @@ mod virtio;
 mod tar;
 mod ext2;
 mod syscall;
+mod elf;
 pub mod traits;
 
 mod dtree;
