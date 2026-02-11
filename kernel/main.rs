@@ -39,6 +39,7 @@ mod ext2;
 mod syscall;
 mod elf;
 pub mod traits;
+mod registers;
 
 mod dtree;
 mod user;

@@ -4,85 +4,45 @@ use core::{
 
 use crate::alloc::GLOBAL_ALLOC;
 
-struct Read;
-struct Write;
-struct ReadWrite;
-
-trait RegType {}
-impl RegType for Read {}
-impl RegType for Write {}
-impl RegType for ReadWrite {}
-
-#[repr(transparent)]
-struct Register<R: RegType>(u32, PhantomData<R>);
-
-impl Register<Read> {
-    pub fn read(&self) -> u32 {
-        unsafe { (self as *const Self).read_volatile().0 }
-    }
-}
-
-impl Register<Write> {
-    pub fn write(&mut self, val: u32) {
-        unsafe {
-            (self as *mut Self).write_volatile(Self(val, PhantomData));
-        }
-    }
-}
-
-impl Register<ReadWrite> {
-    pub fn read(&self) -> u32 {
-        unsafe { (self as *const Self).read_volatile().0 }
-    }
-
-    pub fn write(&mut self, val: u32) {
-        unsafe {
-            (self as *mut Self).write_volatile(Self(val, PhantomData));
-        }
-    }
-
-    pub fn or(&mut self, val: u32) {
-        self.write(self.read() | val);
-    }
-}
+use crate::registers::*;
 
 #[repr(C, packed(4))]
 pub struct VirtioDevice {
-    magic_val: Register<Read>,
-    version: Register<Read>,
-    device_id: Register<Read>,
-    vendor_id: Register<Read>,
-    device_feat: Register<Read>,
-    device_feat_sel: Register<Write>,
+    magic_val: Register<Read, u32>,
+    version: Register<Read, u32>,
+    device_id: Register<Read, u32>,
+    vendor_id: Register<Read, u32>,
+    device_feat: Register<Read, u32>,
+    device_feat_sel: Register<Write, u32>,
     _0: [u32; 2],
-    driver_feat: Register<Write>,
-    driver_feat_sel: Register<Write>,
+    driver_feat: Register<Write, u32>,
+    driver_feat_sel: Register<Write, u32>,
     _1: [u32; 2],
-    queue_sel: Register<Write>,
-    queue_num_max: Register<Read>,
-    queue_num: Register<Write>,
-    legacy_queue_num_align: Register<Write>,
-    legacy_queue_pfn: Register<Write>,
-    queue_ready: Register<ReadWrite>,
+    queue_sel: Register<Write, u32>,
+    queue_num_max: Register<Read, u32>,
+    queue_num: Register<Write, u32>,
+    legacy_queue_num_align: Register<Write, u32>,
+    legacy_queue_pfn: Register<Write, u32>,
+    queue_ready: Register<ReadWrite, u32>,
     _3: [u32; 2],
-    queue_notify: Register<Write>,
+    queue_notify: Register<Write, u32>,
     _4: [u32; 3],
-    interrupt_status: Register<Read>,
-    interrupt_ack: Register<Write>,
+    interrupt_status: Register<Read, u32>,
+    interrupt_ack: Register<Write, u32>,
     _5: [u32; 2],
-    status: Register<ReadWrite>,
+    status: Register<ReadWrite, u32>,
     _6: [u32; 3],
-    queue_desc_low: Register<Write>,
-    queue_desc_high: Register<Write>,
+    queue_desc_low: Register<Write, u32>,
+    queue_desc_high: Register<Write, u32>,
     _7: [u32; 2],
-    queue_driver_low: Register<Write>,
-    queue_driver_high: Register<Write>,
+    queue_driver_low: Register<Write, u32>,
+    queue_driver_high: Register<Write, u32>,
     _8: [u32; 2],
-    queue_device_low: Register<Write>,
-    queue_device_high: Register<Write>,
+    queue_device_low: Register<Write, u32>,
+    queue_device_high: Register<Write, u32>,
     _9: [u32; 0x15],
-    config_gen: Register<Read>,
-    config: Register<ReadWrite>,
+    config_gen: Register<Read, u32>,
+    config: Register<ReadWrite, u32>,
 }
 
 impl VirtioDevice {

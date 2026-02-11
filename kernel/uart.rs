@@ -3,7 +3,7 @@ use core::ptr::NonNull;
 use owo_colors::{OwoColorize, colors::*};
 use spin::{Mutex, MutexGuard, Once};
 
-use crate::traits::KSay;
+use crate::{registers::{ReadWrite, Register}, traits::KSay};
 
 // From Wikibooks
 // (https://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming#UART_Registers):
@@ -22,7 +22,30 @@ use crate::traits::KSay;
 // |+6        | x       | Read       | MSR     | Modem Status Register            |
 // |+7        | x       | Read/Write | SR      | Scratch Register                 |
 
-struct Uart(NonNull<u8>);
+struct Uart(NonNull<Registers>);
+
+struct Registers {
+    /// thr: +0, Write, Transmitter Holding Buffer
+    /// rbr: +0, Read, Receiver Buffer
+    /// dll: +0, R/W, Divisor Latch Low
+    thr_rbr_dll: Register<ReadWrite, u8>,
+    /// ier: +1, R/W, Interrupt Enable Register
+    /// dlh: +1, R/W, Divisor Latch High
+    ier_dlh: Register<ReadWrite, u8>,
+    /// iir: +2, Read, Interrupt Identification Register
+    /// fcr: +2, Write FIFO Control Register
+    iir_fcr: Register<ReadWrite, u8>,
+    /// lcr: +3, R/W, Line Control Register
+    lcr: Register<ReadWrite, u8>,
+    /// mcr: +4, R/W, Modem Control Register
+    mcr: Register<ReadWrite, u8>,
+    /// lsr: +5, Read, Line Status Register
+    lsr: Register<ReadWrite, u8>,
+    /// msr: +6, Read, Modem Status Register
+    msr: Register<ReadWrite, u8>,
+    /// sr: +7, R/W, Scratch Register
+    sr: Register<ReadWrite, u8>,
+}
 
 unsafe impl Send for Uart {}
 unsafe impl Sync for Uart {}
@@ -34,7 +57,7 @@ impl Uart {
         if ptr.is_null() {
             Err(UartInitError)
         } else {
-            unsafe { Result::Ok(Mutex::new(Uart(NonNull::new_unchecked(ptr)))) }
+            unsafe { Result::Ok(Mutex::new(Uart(NonNull::new_unchecked(ptr.cast())))) }
         }
     }
 
