@@ -1,10 +1,18 @@
 use core::{
-    alloc::{GlobalAlloc, Layout}, marker::PhantomData, mem::offset_of, slice, sync::atomic::Ordering
+    alloc::{GlobalAlloc, Layout}, sync::atomic::Ordering, mem::offset_of
 };
 
-use crate::alloc::GLOBAL_ALLOC;
+use owo_colors::{OwoColorize, colors::Green};
+
+use crate::{alloc::GLOBAL_ALLOC, traits::KSay};
 
 use crate::registers::*;
+
+impl KSay for VirtioDevice {
+    const NAME: &'static str = "virtio-blk";
+}
+
+// TODO: Go through virtio docs and fix the minimal and bad queue implementation here
 
 #[repr(C, packed(4))]
 pub struct VirtioDevice {
@@ -45,9 +53,11 @@ pub struct VirtioDevice {
     config: Register<ReadWrite, u32>,
 }
 
+/// TODO: Replace with [`crate::traits::Init`] trait
 impl VirtioDevice {
     fn init_queue(&mut self, index: u32) -> *mut VirtioVirtualQueue {
         unsafe {
+            // TODO: This *gotta* go and be fixed
             let vq: *mut VirtioVirtualQueue = GLOBAL_ALLOC
                 .alloc(Layout::new::<VirtioVirtualQueue>())
                 .cast::<VirtioVirtualQueue>();
@@ -60,6 +70,7 @@ impl VirtioDevice {
                 .write(Layout::new::<VirtioVirtualQueue>().align() as u32);
             self.legacy_queue_pfn.write(vq as u32);
 
+            <VirtioDevice as KSay>::kprint("virtio successfully initalized".fg::<Green>());
             vq
         }
     }
@@ -112,7 +123,9 @@ pub fn init_virtio() {
         virtio_dev.status.write(VIRTIO_STATUS_DRIVER_OK);
 
         BLK_CAPACITY = virtio_dev.config.read() as usize * SECTOR_SIZE;
-        println!("virtio-blk: capacity is 0x{:x}", { BLK_CAPACITY });
+        <VirtioDevice as KSay>::kprint(
+            format_args!("virtio-blk: capacity is 0x{:x}", { BLK_CAPACITY })
+        );
 
         BLK_REQ_PADDR = GLOBAL_ALLOC.alloc(Layout::new::<VirtioBlockReq>());
         BLK_REQ = BLK_REQ_PADDR.cast();
@@ -270,68 +283,6 @@ pub fn write_disk(buf: &[u8], sector: usize) {
                 (*req).status
             );
             return;
-        }
-    }
-}
-
-pub fn read_write_disk(buf: *mut u8, sector: usize, write: bool) {
-    let read_cap = unsafe { BLK_CAPACITY };
-    let cap = read_cap / SECTOR_SIZE;
-
-    if sector >= cap {
-        println!(
-            "virtio: tried to access sector {}, but capacity is {}",
-            sector, cap
-        );
-    }
-
-    unsafe {
-        let req = BLK_REQ;
-        (*req).sector = sector;
-        (*req).ty = if write {
-            VIRTIO_BLK_T_OUT
-        } else {
-            VIRTIO_BLK_T_IN
-        };
-
-        if write {
-            (*req)
-                .data
-                .copy_from_slice(slice::from_raw_parts(buf, SECTOR_SIZE as usize));
-        }
-
-        let vq = BLK_REQUEST_VQ;
-        let paddr = BLK_REQ_PADDR;
-
-        (*vq).descs[0].addr = paddr;
-        (*vq).descs[0].len = (size_of::<u32>() * 2 + size_of::<u64>()) as u32;
-        (*vq).descs[0].flags = VIRTQ_DESC_F_NEXT;
-        (*vq).descs[0].next = 1;
-
-        (*vq).descs[1].addr = paddr.add(offset_of!(VirtioBlockReq, data));
-        (*vq).descs[1].len = SECTOR_SIZE as u32;
-        (*vq).descs[1].flags = VIRTQ_DESC_F_NEXT | if write { 0 } else { VIRTQ_DESC_F_WRITE };
-        (*vq).descs[1].next = 2;
-
-        (*vq).descs[2].addr = paddr.add(offset_of!(VirtioBlockReq, status));
-        (*vq).descs[2].len = 1;
-        (*vq).descs[2].flags = VIRTQ_DESC_F_WRITE;
-
-        vq.kick(0);
-
-        while vq.is_busy() {}
-
-        if (*req).status != 0 {
-            println!(
-                "virtio: failed to access sector {}, status = {}",
-                sector,
-                (*req).status
-            );
-            return;
-        }
-
-        if !write {
-            slice::from_raw_parts_mut(buf, SECTOR_SIZE as usize).copy_from_slice(&(*req).data);
         }
     }
 }

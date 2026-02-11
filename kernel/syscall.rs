@@ -1,6 +1,6 @@
 use core::{slice, str};
 
-use crate::{PROC_CURR, get_fs_unwrap, proc::{Process, ProcessState, r#yield}, sbi::{sbi_getchar, sbi_putchar}, tar, trap::TrapFrame};
+use crate::{PROC_CURR, proc::{Process, ProcessState, r#yield}, sbi::{sbi_getchar, sbi_putchar}, trap::TrapFrame};
 
 use utils::syscall::consts::*;
 
@@ -26,44 +26,10 @@ pub fn handle_syscall(f: &mut TrapFrame) {
             r#yield();
         }
         SYS_WRITE => {
-            let name_ptr = f.a0 as *const u8;
-            let name_size = f.a1 as usize;
-            // # Safety:
-            // The shell syscall wraps taking in a rust &str and deconstructs it
-            // behind the scenes, exposing only a safe interface where safe
-            // rust can verify a valid &str
-            let name = unsafe { str::from_raw_parts(name_ptr, name_size) };
-
-            let buf_ptr = f.a2 as *const u8;
-            let buf_size = f.a3 as usize;
-            // # Safety:
-            // The shell syscall wraps taking in a rust &[u8] and deconstructs it
-            // behind the scenes, exposing only a safe interface where safe
-            // rust can verify a valid &[u8]
-            let buf = unsafe { slice::from_raw_parts(buf_ptr, buf_size) };
+            todo!()
         }
         SYS_READ => {
-            let name_ptr = f.a0 as *const u8;
-            let name_size = f.a1 as usize;
-            // # Safety:
-            // The shell syscall wraps taking in a rust &str and deconstructs it
-            // behind the scenes, exposing only a safe interface where safe
-            // rust can verify a valid &str
-            let name = unsafe { str::from_raw_parts(name_ptr, name_size) };
-
-            let buf_ptr = f.a2 as *mut u8;
-            let buf_size = f.a3 as usize;
-            // # Safety:
-            // The shell syscall wraps taking in a rust &[u8] and deconstructs it
-            // behind the scenes, exposing only a safe interface where safe
-            // rust can verify a valid &[u8]
-            let buf = unsafe { slice::from_raw_parts_mut(buf_ptr, buf_size) };
-
-            let res = tar::read(get_fs_unwrap(), name, buf);
-
-            let arr: [usize; 2] = unsafe { core::mem::transmute(res) };
-            f.a0 = arr[0];
-            f.a1 = arr[1];
+            todo!()
         }
         call => panic!("Unimplemented syscall {}", call),
     }

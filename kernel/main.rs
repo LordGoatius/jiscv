@@ -34,7 +34,6 @@ mod print;
 mod trap;
 mod uart;
 mod virtio;
-mod tar;
 mod ext2;
 mod syscall;
 mod elf;
@@ -47,15 +46,14 @@ mod user;
 use core::arch::asm;
 use core::panic::PanicInfo;
 
-use ralloc::vec::Vec;
 use spin::lazy::Lazy;
 
 use crate::alloc::GLOBAL_ALLOC;
 use crate::dtree::{DeviceTreeHeader, DeviceTreeNode};
 use crate::proc::{create_process, r#yield, Process};
-use crate::tar::File;
-use crate::uart::{UartInitError, init_uart};
+use crate::uart::{UART, UartInitError, init_uart};
 use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
+use crate::print::PRINTER;
 
 unsafe extern "C" {
     static mut __bss: u8;
@@ -85,14 +83,6 @@ pub static mut PROC_CURR: Option<*mut Process> = None;
 
 // Use trait for VFS later lol
 pub trait Filesystem {}
-pub static mut FILESYSTEM: Option<Vec<File>> = None;
-
-// Don't really think this is safe
-pub fn get_fs_unwrap() -> &'static mut [File] {
-    unsafe {
-        FILESYSTEM.as_mut().unwrap()
-    }
-}
 
 fn main() -> ! {
     let (devicetree, hart_start) = unsafe {
@@ -122,14 +112,20 @@ fn main() -> ! {
 
     let dtree = dtree::parse(devicetree);
     // dtree.print_properties();
+    // TODO: use the [`crate::traits::Init`] trait to utilize
+    // the devicetree to initalize drivers, if applicable.
+    // This may not be the most efficient way to do this.
     let node = dtree.search("/soc/serial");
     let addr = node.and_then(DeviceTreeNode::get_addr);
     let addr = addr.and_then(
         |src| usize::from_str_radix(src, 16).ok().map(|num| num as *mut u8)
     );
-    let addr = addr
+
+    let _ = addr
         .ok_or_else(|| UartInitError)
         .and_then(|addr| init_uart(addr));
+
+    UART.get().unwrap().lock().set_printer();
 
     virtio::init_virtio();
 

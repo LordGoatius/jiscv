@@ -1,6 +1,6 @@
 #![allow(private_bounds)]
 
-use core::{marker::PhantomData, ops::BitOr};
+use core::{any::type_name, fmt::Debug, marker::PhantomData, ops::BitOr};
 
 pub struct Read;
 pub struct Write;
@@ -18,8 +18,16 @@ impl RegTrait for u16 {}
 impl RegTrait for u32 {}
 impl RegTrait for u64 {}
 
+/// Deriving [`core::fmt::Debug`] is safe for any types containing this. The [`core::fmt::Debug`] implementation
+/// for [`Register`] does not read or write.
 #[repr(transparent)]
 pub struct Register<R: RegType, T: RegTrait>(T, PhantomData<R>);
+
+impl<R: RegType, T: RegTrait> Debug for Register<R, T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Register<{}, {}>", type_name::<R>(), type_name::<T>())
+    }
+}
 
 impl<T: RegTrait> Register<Read, T> {
     pub fn read(&self) -> T {

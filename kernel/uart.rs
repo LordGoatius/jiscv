@@ -1,9 +1,10 @@
-use core::ptr::NonNull;
+#![expect(dead_code)]
+use core::fmt::{Debug, Write};
 
 use owo_colors::{OwoColorize, colors::*};
-use spin::{Mutex, MutexGuard, Once};
+use spin::{Once, mutex::SpinMutex};
 
-use crate::{registers::{ReadWrite, Register}, traits::KSay};
+use crate::{print::{Printer, set_printer}, registers::*, traits::KSay};
 
 // From Wikibooks
 // (https://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming#UART_Registers):
@@ -21,9 +22,19 @@ use crate::{registers::{ReadWrite, Register}, traits::KSay};
 // |+5        | x       | Read       | LSR     | Line Status Register             |
 // |+6        | x       | Read       | MSR     | Modem Status Register            |
 // |+7        | x       | Read/Write | SR      | Scratch Register                 |
+// Shoutout Wikibooks
 
-struct Uart(NonNull<Registers>);
+/// The infrastructre to write a full serial driver sure does exist now.
+/// Maybe I'll even do it some day.
+/// It's not complicated but now that it does what I want I wanna do the more fun
+/// stuff I can do in the os.
+pub struct Uart(&'static mut Registers);
 
+impl Printer for Uart {
+    fn name(&self) -> &str { "uart" }
+}
+
+#[derive(Debug)]
 struct Registers {
     /// thr: +0, Write, Transmitter Holding Buffer
     /// rbr: +0, Read, Receiver Buffer
@@ -40,9 +51,9 @@ struct Registers {
     /// mcr: +4, R/W, Modem Control Register
     mcr: Register<ReadWrite, u8>,
     /// lsr: +5, Read, Line Status Register
-    lsr: Register<ReadWrite, u8>,
+    lsr: Register<Read, u8>,
     /// msr: +6, Read, Modem Status Register
-    msr: Register<ReadWrite, u8>,
+    msr: Register<Read, u8>,
     /// sr: +7, R/W, Scratch Register
     sr: Register<ReadWrite, u8>,
 }
@@ -50,42 +61,58 @@ struct Registers {
 unsafe impl Send for Uart {}
 unsafe impl Sync for Uart {}
 
-static UART: Once<Mutex<Uart>> = Once::new();
+// TODO: Remove once allocated drivers are working.
+pub static UART: Once<SpinMutex<Uart>> = Once::new();
 
 impl Uart {
-    fn from_ptr(ptr: *mut u8) -> Result<Mutex<Uart>, UartInitError> {
+    fn from_ptr(ptr: *mut u8) -> Result<SpinMutex<Uart>, UartInitError> {
         if ptr.is_null() {
             Err(UartInitError)
         } else {
-            unsafe { Result::Ok(Mutex::new(Uart(NonNull::new_unchecked(ptr.cast())))) }
+            unsafe {
+                Result::Ok(SpinMutex::new(Uart(ptr.cast::<Registers>().as_mut_unchecked())))
+            }
         }
     }
 
-    pub fn write_str(&self, str: &str) {
-        todo!("{:?}", self.0)
+    pub fn set_printer(&self) {
+        // # Safety:
+        // Uh well self has to be the single static UART driver
+        // if it's not then wtf we doing here
+        // I gotta allocate my drivers man
+        unsafe {
+            // Was easier than making the function only work with statics
+            set_printer((self as *const dyn Printer).cast_mut().as_mut_unchecked());
+        }
     }
 }
 
+impl Write for Uart {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        for byte in s.bytes() {
+            // uh just shove those bits through without a care in the world
+            // no need for "validating logic"
+            self.0.thr_rbr_dll.write(byte);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 pub struct UartInitError;
 
-// for i in "hello".bytes() {
-//     unsafe {
-//         (0x1000_0000 as *mut u8).write_volatile(i);
-//     }
-// }
-
 #[inline(never)]
-pub fn init_uart(addr: *mut u8) -> Result<(), UartInitError> {
+pub fn init_uart(addr: *mut u8) -> Result<&'static SpinMutex<Uart>, UartInitError> {
     let uart = UART.try_call_once(|| Uart::from_ptr(addr));
 
     match uart {
-        Ok(_) => <MutexGuard<'_, Uart> as KSay>::kprint("UART successfully initalized".fg::<Green>()),
-        Err(_) => <MutexGuard<'_, Uart> as KSay>::kprint("UART failed to initalize".fg::<Red>()),
+        Ok(_) => <Uart as KSay>::kprint("UART successfully created".fg::<Green>()),
+        Err(_) => <Uart as KSay>::kprint("UART failed to initalize".fg::<Red>()),
     }
 
-    uart.map(|_| ())
+    uart
 }
 
-impl KSay for MutexGuard<'_, Uart>  {
+impl KSay for Uart  {
     const NAME: &'static str = "serial";
 }
