@@ -1,6 +1,6 @@
 #![allow(private_bounds)]
 
-use core::{any::type_name, fmt::Debug, marker::PhantomData, ops::BitOr};
+use core::{any::type_name, fmt::Debug, marker::PhantomData, ops::{BitAnd, BitOr}};
 
 pub struct Read;
 pub struct Write;
@@ -11,7 +11,7 @@ impl RegType for Read {}
 impl RegType for Write {}
 impl RegType for ReadWrite {}
 
-trait RegTrait: BitOr<Output = Self> + Sized {}
+trait RegTrait: BitOr<Output = Self> + BitAnd<Output = Self> + Sized {}
 
 impl RegTrait for u8 {}
 impl RegTrait for u16 {}
@@ -56,6 +56,11 @@ impl<T: RegTrait> Register<ReadWrite, T> {
 
     pub fn or(&mut self, val: T) {
         self.write(self.read() | val);
+    }
+
+    #[expect(unused)]
+    pub fn and(&mut self, val: T) {
+        self.write(self.read() & val);
     }
 }
 

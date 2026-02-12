@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ev
 
-cargo build --bin shell --target riscv64gc-unknown-none-elf
+cargo build --release --bin shell --target riscv64gc-unknown-none-elf
 
 cp target/riscv64gc-unknown-none-elf/debug/shell .shell.elf
 

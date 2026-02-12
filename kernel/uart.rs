@@ -82,6 +82,8 @@ impl Uart {
         // I gotta allocate my drivers man
         unsafe {
             // Was easier than making the function only work with statics
+            // Okay so uh
+            // Maybe I can do this. Maybe I am special.
             set_printer((self as *const dyn Printer).cast_mut().as_mut_unchecked());
         }
     }

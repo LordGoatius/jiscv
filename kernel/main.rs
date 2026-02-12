@@ -53,7 +53,6 @@ use crate::dtree::{DeviceTreeHeader, DeviceTreeNode};
 use crate::proc::{create_process, r#yield, Process};
 use crate::uart::{UART, UartInitError, init_uart};
 use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
-use crate::print::PRINTER;
 
 unsafe extern "C" {
     static mut __bss: u8;
@@ -111,7 +110,7 @@ fn main() -> ! {
     GLOBAL_ALLOC.init(&raw mut __heap, &raw mut __heap_end);
 
     let dtree = dtree::parse(devicetree);
-    // dtree.print_properties();
+    dtree.print_properties();
     // TODO: use the [`crate::traits::Init`] trait to utilize
     // the devicetree to initalize drivers, if applicable.
     // This may not be the most efficient way to do this.

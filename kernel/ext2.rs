@@ -5,7 +5,7 @@ use core::{alloc::Layout, fmt::{Binary, Debug}, mem::offset_of, slice};
 use ralloc::{alloc, vec::Vec};
 use spin::once::Once;
 
-use crate::virtio::{SECTOR_SIZE, read_disk, write_disk};
+use crate::{traits::KSay, virtio::{SECTOR_SIZE, read_disk, write_disk}};
 
 const ROOT_INODE: u32 = 2;
 
@@ -19,6 +19,7 @@ pub fn init() {
 
     let superblock: &Superblock = unsafe { &core::mem::transmute(buf) };
     let fs: Ext2 = superblock.get_ext2();
+    <Ext2 as KSay>::kprint("Ext2 initalized");
 
     unsafe {
         BLOCK_SZ_BUF.call_once(|| {
@@ -28,17 +29,10 @@ pub fn init() {
         })
     };
 
-    println!("{fs:#?}");
-
     fs.read_block(unsafe { BLOCK_SZ_BUF.get_mut_unchecked() }, 1);
 
-    let bgdesc: &[BlockGroupDescriptor] = unsafe {
-        let ptr = BLOCK_SZ_BUF.get_unchecked().as_ptr().cast::<BlockGroupDescriptor>();
-        slice::from_raw_parts(ptr, fs.blck_size as usize / size_of::<BlockGroupDescriptor>())
-    };
-
     let root_inode = fs.read_inode(ROOT_INODE);
-    let block_0 = root_inode.direct_block_ptr_0;
+    let block_0 = root_inode.direct_block_ptr[0];
     fs.read_block(unsafe { BLOCK_SZ_BUF.get_mut_unchecked() }, block_0 as usize);
     unsafe {
         let block = BLOCK_SZ_BUF.get_unchecked();
@@ -61,6 +55,10 @@ pub struct Ext2 {
     pub opt_feat: Bitmap<u32>,
     pub req_feat: Bitmap<u32>,
     pub read_only_feat: Bitmap<u32>,
+}
+
+impl KSay for Ext2 {
+    const NAME: &'static str = "fs:ext2";
 }
 
 #[repr(C, packed(4))]
@@ -189,7 +187,6 @@ impl Ext2 {
         };
 
         let bg = bgdesc[block_group as usize];
-        println!("{block_group}: {bg:#?}");
 
         // INODE ADDRESSES START AT 1
         // Root Inode always 2
@@ -267,18 +264,7 @@ struct Inode {
     num_disk_sectors: u32,        // Count of disk sectors (not Ext2 blocks) in use by this inode, not counting the actual inode structure nor directory entries linking to the inode.
     flags: u32,                   // Flags (see below)
     os_val_1: u32,                // Operating System Specific value #1
-    direct_block_ptr_0: u32,      // Direct Block Pointer 0
-    direct_block_ptr_1: u32,      // Direct Block Pointer 1
-    direct_block_ptr_2: u32,      // Direct Block Pointer 2
-    direct_block_ptr_3: u32,      // Direct Block Pointer 3
-    direct_block_ptr_4: u32,      // Direct Block Pointer 4
-    direct_block_ptr_5: u32,      // Direct Block Pointer 5
-    direct_block_ptr_6: u32,      // Direct Block Pointer 6
-    direct_block_ptr_7: u32,      // Direct Block Pointer 7
-    direct_block_ptr_8: u32,      // Direct Block Pointer 8
-    direct_block_ptr_9: u32,      // Direct Block Pointer 9
-    direct_block_ptr_10: u32,     // Direct Block Pointer 10
-    direct_block_ptr_11: u32,     // Direct Block Pointer 11
+    direct_block_ptr: [u32; 11],      // Direct Block Pointer 0-10
     single_indirect_blk_ptr: u32, // Singly Indirect Block Pointer (Points to a block that is a list of block pointers to data)
     doubly_indirect_blk_ptr: u32, // Doubly Indirect Block Pointer (Points to a block that is a list of block pointers to Singly Indirect Blocks)
     triply_indirect_blk_ptr: u32, // Triply Indirect Block Pointer (Points to a block that is a list of block pointers to Doubly Indirect Blocks)
