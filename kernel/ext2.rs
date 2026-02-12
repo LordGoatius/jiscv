@@ -1,5 +1,13 @@
 #![rustfmt::skip]
 
+//! Writing down my ideas here so I don't forget
+//!
+//! So obviously there needs to be a VFS. How? Idk. Not sure yet. Never written one.
+//! However, the userspace must still be able to access files. So, when shell starts, it
+//! can request the root directory to be read. The filesystem reads the root inode, sends the data
+//! to the shell through a syscall and all is well. The shell can then request to change location or
+//! read a file. I'm working on writing a file. It's in progress mentally. Just not physically.
+
 use core::{alloc::Layout, fmt::{Binary, Debug}, mem::offset_of, slice};
 
 use ralloc::{alloc, vec::Vec};
