@@ -24,16 +24,17 @@ use crate::{print::{Printer, set_printer}, registers::*, traits::KSay};
 // |+7        | x       | Read/Write | SR      | Scratch Register                 |
 // Shoutout Wikibooks
 
-/// The infrastructre to write a full serial driver sure does exist now.
+/// The infrastructre to write a full UART driver sure does exist now.
 /// Maybe I'll even do it some day.
 /// It's not complicated but now that it does what I want I wanna do the more fun
-/// stuff I can do in the os.
+/// stuff I can do in the OS.
 pub struct Uart(&'static mut Registers);
 
 impl Printer for Uart {
     fn name(&self) -> &str { "uart" }
 }
 
+#[repr(C)]
 #[derive(Debug)]
 struct Registers {
     /// thr: +0, Write, Transmitter Holding Buffer

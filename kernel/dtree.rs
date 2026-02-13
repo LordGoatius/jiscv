@@ -8,7 +8,7 @@ use ralloc::vec::Vec;
 #[repr(u32)]
 #[rustfmt::skip]
 #[derive(Debug, Clone, Copy)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, unused)]
 pub enum FDT_TOKEN {
     BEGIN_NODE = u32::to_be(0x00000001),
     END_NODE   = u32::to_be(0x00000002),
@@ -33,7 +33,10 @@ impl FDT_TOKEN {
 }
 
 pub fn parse(header: *const DeviceTreeHeader) -> DeviceTree {
-    assert_eq!(unsafe { header.read_volatile() }.magic, 0xd00dfeed_u32.to_be());
+    assert_eq!(
+        unsafe { header.read_volatile() }.magic,
+        0xd00dfeed_u32.to_be()
+    );
     let parser = DeviceTreeParser::from(header);
     parser.parse()
 }
@@ -317,6 +320,28 @@ impl DeviceTreeParser {
 }
 
 impl DeviceTreeNode {
+    fn addr_size_cells(&self) -> Option<(u32, u32)> {
+        let props = &self.properties;
+        let addr_cells = props.iter().find_map(|elem| {
+            if elem.name.contains("#address-cells") {
+                Some(u32::from_be_bytes(*elem.value.as_array().unwrap()))
+            } else {
+                None
+            }
+        });
+        let size_cells = props.iter().find_map(|elem| {
+            if elem.name.contains("#size-cells") {
+                Some(u32::from_be_bytes(*elem.value.as_array().unwrap()))
+            } else {
+                None
+            }
+        });
+        match (addr_cells, size_cells) {
+            (Some(addr), Some(size)) => Some((addr, size)),
+            _ => None,
+        }
+    }
+
     fn find_prop(&self, name: &str) -> Option<&DeviceTreeNode> {
         todo!()
     }
@@ -350,7 +375,7 @@ impl DeviceTreeNode {
         None
     }
 
-    pub fn print(&self, indent: usize) {
+    pub fn print(&self, indent: usize, addr_size: (u32, u32)) {
         for _ in 1..indent {
             print!("    ");
         }
@@ -362,10 +387,17 @@ impl DeviceTreeNode {
                     print!("    ");
                 }
                 println!("{}", node.name);
+                // TODO: Use addr_size to compute proper printing of property values
             });
-        self.child_node
-            .iter()
-            .for_each(|node| node.print(indent + 1));
+        self.child_node.iter().for_each(|node| {
+            node.print(
+                indent + 1,
+                // From DTree Spec:
+                // > If missing, a client program should assume a default value of 2 for
+                // > #address-cells, and a value of 1 for #size-cells.
+                node.addr_size_cells().unwrap_or((2, 1)),
+            )
+        });
         for _ in 1..indent {
             print!("    ");
         }
@@ -377,9 +409,10 @@ impl DeviceTree {
     pub fn search(&self, path: &str) -> Option<&DeviceTreeNode> {
         self.node_list_root.search(&path[1..])
     }
-    
+
     pub fn print_properties(&self) {
-        self.node_list_root.print(1);
+        let cells = self.node_list_root.addr_size_cells();
+        self.node_list_root.print(1, cells.unwrap());
     }
 }
 
@@ -452,7 +485,7 @@ def_prop_list!((
     // ("interrupts-extended", )
     ("#interrupt-cells", U32),
     ("interrupt-controller", Empty),
-    ("interrupt-map",PropEncArr),
+    ("interrupt-map", PropEncArr),
     ("interrupt-map-mask", PropEncArr),
 ));
 
