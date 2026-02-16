@@ -1,6 +1,6 @@
 use core::{
     fmt::{Debug, Display},
-    slice,
+    slice, str,
 };
 
 use ralloc::vec::Vec;
@@ -75,6 +75,45 @@ pub struct DeviceTreeNode {
 pub struct DeviceTreeProperty {
     name: &'static str,
     value: &'static [u8],
+}
+
+impl Display for DeviceTreeProperty {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{} = ", self.name)?;
+        match prop_type(self.name) {
+            Some(PropertyValues::Empty) => write!(f, "<empty>"),
+            Some(PropertyValues::U32) => write!(f, "<{}>", u32::from_be_bytes(*self.value.as_array().unwrap())),
+            Some(PropertyValues::U64) => write!(f, "<{}>", u64::from_be_bytes(*self.value.as_array().unwrap())),
+            Some(PropertyValues::String) => write!(f, "{}", unsafe { str::from_utf8_unchecked(self.value) }),
+            // I'll do this later because I don't wanna right now
+            Some(PropertyValues::PropEncArr) => write!(f, "<propencarr> {}", self.value.len()),
+            Some(PropertyValues::PHandle) => write!(f, "<{}>", u32::from_be_bytes(*self.value.as_array().unwrap())),
+            Some(PropertyValues::StrList) => {
+                let mut len = 0;
+                let mut ptr = self.value.as_ptr();
+                let zero_count = self.value.iter().filter(|&&val| val == 0).count();
+                let mut count = 1;
+                write!(f, "\"")?;
+                for i in 0..self.value.len() {
+                    if self.value[i] == 0 {
+                        let str = unsafe { str::from_raw_parts(ptr, len) };
+                        if count < zero_count {
+                            write!(f, "{str}\", \"")?;
+                        } else {
+                            write!(f, "{str}\"")?;
+                        }
+                        ptr = unsafe { ptr.add(len) };
+                        len += 1;
+                        count += 1;
+                    } else {
+                        len += 1;
+                    }
+                }
+                Ok(())
+            },
+            None => write!(f, "<empty/unknown>"),
+        }
+    }
 }
 
 impl Debug for DeviceTreeProperty {
@@ -386,8 +425,7 @@ impl DeviceTreeNode {
                 for _ in 0..indent {
                     print!("    ");
                 }
-                println!("{}", node.name);
-                // TODO: Use addr_size to compute proper printing of property values
+                println!("{}", node);
             });
         self.child_node.iter().for_each(|node| {
             node.print(
@@ -435,6 +473,7 @@ impl Display for DeviceTreeHeader {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum PropertyValues {
     Empty,
     U32,
@@ -445,6 +484,7 @@ pub enum PropertyValues {
     StrList,
 }
 
+#[derive(Clone, Copy)]
 pub struct StdProperty {
     name: &'static str,
     value: PropertyValues,
@@ -467,27 +507,41 @@ macro_rules! def_prop_list {
     };
 }
 
+
 def_prop_list!((
-    ("compatible", StrList),
-    ("model", String),
-    ("phandle", U32),
-    ("status", String),
     ("#address-cells", U32),
-    ("#size-cells", U32),
-    ("reg", PropEncArr),
-    ("virtual-reg", U32),
-    ("ranges", PropEncArr),
-    ("dma-ranges", PropEncArr),
-    ("name", String),
-    ("device_type", String),
-    ("interrupts", PropEncArr),
-    ("interrupt-parent", PHandle),
-    // ("interrupts-extended", )
     ("#interrupt-cells", U32),
+    ("#size-cells", U32),
+
+    ("compatible", StrList),
+    ("device_type", String),
+    ("dma-ranges", PropEncArr),
+
+    ("interrupts", PropEncArr),
     ("interrupt-controller", Empty),
     ("interrupt-map", PropEncArr),
     ("interrupt-map-mask", PropEncArr),
+    ("interrupt-parent", PHandle),
+
+    ("model", String),
+
+    ("name", String),
+
+    ("phandle", U32),
+
+    ("ranges", PropEncArr),
+    ("reg", PropEncArr),
+
+    ("status", String),
+
+    ("virtual-reg", U32),
 ));
+
+fn prop_type(name: &str) -> Option<PropertyValues> {
+    STANDARD_PROPERTIES.binary_search_by(|prop| {
+        prop.name.cmp(name)
+    }).map(|index| STANDARD_PROPERTIES[index].value).ok()
+}
 
 static GENERIC_NAMES: [&str; 96] = [
     "adc",
