@@ -79,21 +79,21 @@ pub struct DeviceTreeProperty {
 
 impl Display for DeviceTreeProperty {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{} = ", self.name)?;
+        write!(f, "{}", self.name)?;
         match prop_type(self.name) {
-            Some(PropertyValues::Empty) => write!(f, "<empty>"),
-            Some(PropertyValues::U32) => write!(f, "<{}>", u32::from_be_bytes(*self.value.as_array().unwrap())),
-            Some(PropertyValues::U64) => write!(f, "<{}>", u64::from_be_bytes(*self.value.as_array().unwrap())),
-            Some(PropertyValues::String) => write!(f, "{}", unsafe { str::from_utf8_unchecked(self.value) }),
+            Some(PropertyValues::Empty) => write!(f, ";"),
+            Some(PropertyValues::U32) => write!(f, " = <{}>;", u32::from_be_bytes(*self.value.as_array().unwrap())),
+            Some(PropertyValues::U64) => write!(f, " = <{}>;", u64::from_be_bytes(*self.value.as_array().unwrap())),
+            Some(PropertyValues::String) => write!(f, " = \"{}\";", unsafe { str::from_utf8_unchecked(self.value) }),
             // I'll do this later because I don't wanna right now
-            Some(PropertyValues::PropEncArr) => write!(f, "<propencarr> {}", self.value.len()),
-            Some(PropertyValues::PHandle) => write!(f, "<{}>", u32::from_be_bytes(*self.value.as_array().unwrap())),
+            Some(PropertyValues::GenericPropEncArr) => write!(f, " = <propencarr> {};", self.value.len()),
+            Some(PropertyValues::PHandle) => write!(f, " = <{}>;", u32::from_be_bytes(*self.value.as_array().unwrap())),
             Some(PropertyValues::StrList) => {
                 let mut len = 0;
                 let mut ptr = self.value.as_ptr();
                 let zero_count = self.value.iter().filter(|&&val| val == 0).count();
                 let mut count = 1;
-                write!(f, "\"")?;
+                write!(f, " = \"")?;
                 for i in 0..self.value.len() {
                     if self.value[i] == 0 {
                         let str = unsafe { str::from_raw_parts(ptr, len) };
@@ -103,15 +103,15 @@ impl Display for DeviceTreeProperty {
                             write!(f, "{str}\"")?;
                         }
                         ptr = unsafe { ptr.add(len) };
-                        len += 1;
+                        len = 0;
                         count += 1;
                     } else {
                         len += 1;
                     }
                 }
-                Ok(())
+                write!(f, ";")
             },
-            None => write!(f, "<empty/unknown>"),
+            None => write!(f, " = <unknown> {:?};", self.value),
         }
     }
 }
@@ -479,7 +479,7 @@ pub enum PropertyValues {
     U32,
     U64,
     String,
-    PropEncArr,
+    GenericPropEncArr,
     PHandle,
     StrList,
 }
@@ -499,9 +499,17 @@ macro_rules! define_prop {
     };
 }
 
+macro_rules! count {
+    () => { 0 };
+    (($($args:tt)*)) => { 1 };
+    (($($head:tt)*), $(($($tail:tt)*)),*) => {
+        1 + count!($(($($tail)*)),*)
+    };
+}
+
 macro_rules! def_prop_list {
     (($(($($args:tt)*)),* $(,)?)) => {
-        static STANDARD_PROPERTIES: [StdProperty; 18] = [$(
+        static STANDARD_PROPERTIES: [StdProperty; count!($(($($args)*)),*)] = [$(
             define_prop!($($args)*),
         )*];
     };
@@ -514,14 +522,19 @@ def_prop_list!((
     ("#size-cells", U32),
 
     ("compatible", StrList),
-    ("device_type", String),
-    ("dma-ranges", PropEncArr),
+    ("cpu", U32),
 
-    ("interrupts", PropEncArr),
+    ("device_type", String),
+    ("dma-coherent", Empty),
+    ("dma-ranges", GenericPropEncArr),
+
     ("interrupt-controller", Empty),
-    ("interrupt-map", PropEncArr),
-    ("interrupt-map-mask", PropEncArr),
+    ("interrupt-map", GenericPropEncArr),
+    ("interrupt-map-mask", GenericPropEncArr),
     ("interrupt-parent", PHandle),
+    ("interrupts", GenericPropEncArr),
+
+    ("linux,phandle", U32),
 
     ("model", String),
 
@@ -529,8 +542,8 @@ def_prop_list!((
 
     ("phandle", U32),
 
-    ("ranges", PropEncArr),
-    ("reg", PropEncArr),
+    ("ranges", GenericPropEncArr),
+    ("reg", GenericPropEncArr),
 
     ("status", String),
 

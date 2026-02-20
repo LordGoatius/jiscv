@@ -13,6 +13,7 @@ pub trait KSay {
     }
 }
 
-pub trait Init {
+pub trait Init: KSay {
+    const COMPATIBLE: &[&str];
     fn init(&self, dtree: &DeviceTree);
 }
