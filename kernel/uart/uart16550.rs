@@ -7,7 +7,7 @@ use crate::{
     print::{Printer, set_printer},
     registers::*,
     traits::KSay,
-    uart::{UART16650, UartInitError}
+    uart::{UART16550, UartInitError}
 };
 
 // | Address | Register | Access Type | Reset Value | Description
@@ -78,7 +78,7 @@ impl Write for Uart {
 
 #[inline(never)]
 pub fn init_uart_16650(addr: *mut u8) -> Result<&'static SpinMutex<Uart>, UartInitError> {
-    let uart = UART16650.try_call_once(|| Uart::from_ptr(addr));
+    let uart = UART16550.try_call_once(|| Uart::from_ptr(addr));
 
     match uart {
         Ok(_) => <Uart as KSay>::kprint("UART successfully created".fg::<Green>()),

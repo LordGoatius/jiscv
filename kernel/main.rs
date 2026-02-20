@@ -51,8 +51,7 @@ use spin::lazy::Lazy;
 use crate::alloc::GLOBAL_ALLOC;
 use crate::dtree::{DeviceTreeHeader, DeviceTreeNode};
 use crate::proc::{create_process, r#yield, Process};
-use crate::uart::uart16650::init_uart_16650;
-use crate::uart::{UART16650, UartInitError, uart16650::init_uart_16650 as init_uart};
+use crate::uart::{UART16550, UartInitError, uart16550::init_uart_16650 as init_uart};
 use crate::user::{_binary__shell_bin_end, _binary__shell_bin_start};
 
 unsafe extern "C" {
@@ -125,7 +124,7 @@ fn main() -> ! {
         .ok_or_else(|| UartInitError)
         .and_then(|addr| init_uart(addr));
 
-    UART16650.get().unwrap().lock().set_printer();
+    UART16550.get().unwrap().lock().set_printer();
 
     virtio::init_virtio();
 
